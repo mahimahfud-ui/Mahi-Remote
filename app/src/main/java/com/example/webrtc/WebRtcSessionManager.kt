@@ -30,7 +30,8 @@ import java.util.concurrent.Executors
 class WebRtcSessionManager(
     private val context: Context,
     private val onSignalingMessage: (type: String, payload: String) -> Unit,
-    private val onDataChannelMessage: ((String) -> Unit)? = null
+    private val onDataChannelMessage: ((String) -> Unit)? = null,
+    private val onCaptureStopped: (() -> Unit)? = null
 ) {
     val eglBase: EglBase = EglBase.create()
     private val executor = Executors.newSingleThreadExecutor()
@@ -82,6 +83,7 @@ class WebRtcSessionManager(
             override fun onStop() {
                 AuditLogger.log("WEBRTC", "PROJECTION_REVOKED", "System MediaProjection revoked by OS", AuditSeverity.WARNING)
                 stopScreenCapture()
+                onCaptureStopped?.invoke()
             }
         })
 
@@ -115,7 +117,8 @@ class WebRtcSessionManager(
     fun initPeerConnection(
         iceServers: List<PeerConnection.IceServer>,
         isSender: Boolean,
-        onRemoteTrack: ((VideoTrack) -> Unit)? = null
+        onRemoteTrack: ((VideoTrack) -> Unit)? = null,
+        onIceConnectionStateChanged: ((PeerConnection.IceConnectionState?) -> Unit)? = null
     ) {
         val factory = peerConnectionFactory ?: return
         synchronized(pendingIceLock) {
@@ -133,6 +136,7 @@ class WebRtcSessionManager(
 
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                 AuditLogger.log("WEBRTC", "ICE_STATE", "ICE Connection State: $state", AuditSeverity.INFO)
+                onIceConnectionStateChanged?.invoke(state)
             }
 
             override fun onIceConnectionReceivingChange(receiving: Boolean) {}
