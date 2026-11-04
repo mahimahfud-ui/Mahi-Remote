@@ -364,7 +364,8 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                     "SDP_OFFER" -> {
                         if (_appRole.value == AppRole.CONTROLLER) {
                             val root = JSONObject(msg.payload)
-                            val sdp = root.optString("sdp", "")
+                            val signal = root.optJSONObject("payload") ?: root
+                            val sdp = signal.optString("sdp", root.optString("sdp", ""))
                             if (sdp.isNotEmpty()) controllerWebRtcManager?.handleRemoteOfferAndCreateAnswer(sdp)
                         } else {
                             ScreenCaptureService.handleIncomingSignalFromViewModel(msg.type, msg.payload)
@@ -373,7 +374,8 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                     "SDP_ANSWER" -> {
                         if (_appRole.value == AppRole.CONTROLLER) {
                             val root = JSONObject(msg.payload)
-                            val sdp = root.optString("sdp", "")
+                            val signal = root.optJSONObject("payload") ?: root
+                            val sdp = signal.optString("sdp", root.optString("sdp", ""))
                             if (sdp.isNotEmpty()) controllerWebRtcManager?.handleRemoteAnswer(sdp)
                         } else {
                             ScreenCaptureService.handleIncomingSignalFromViewModel(msg.type, msg.payload)
@@ -382,7 +384,9 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                     "ICE_CANDIDATE" -> {
                         if (_appRole.value == AppRole.CONTROLLER) {
                             val root = JSONObject(msg.payload)
-                            val candObj = if (root.has("candidate") && root.get("candidate") is JSONObject) root.getJSONObject("candidate") else root
+                            val signal = root.optJSONObject("payload") ?: root
+                            val candidateObject = signal.optJSONObject("candidate")
+                            val candObj = candidateObject ?: signal
                             val sdpMid = candObj.optString("sdpMid", "0")
                             val sdpMLineIndex = candObj.optInt("sdpMLineIndex", 0)
                             val candidate = candObj.optString("candidate", "")
