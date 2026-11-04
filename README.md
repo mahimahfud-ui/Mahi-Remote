@@ -56,10 +56,11 @@ Windows WPF
 
 1. Install the Android app on both handsets.
 2. Choose the receiver phone and generate a fresh one-time pairing code.
-3. On the receiver, approve screen sharing in the Android MediaProjection system prompt.
-4. On the controller phone, enter the receiver code or scan its QR code.
-5. Approve the requested scopes on the receiver before control starts.
-6. Enable **Mahi Remote Input Service** manually in Android Settings → Accessibility before trying remote touch input.
+3. The receiver may start screen sharing first, or the controller may request pairing first; incoming SDP/ICE is held briefly while the receiver's capture peer becomes ready.
+4. On the controller phone or in a desktop/mobile browser, enter the receiver code or scan its QR code.
+5. Approve the connection request and requested scopes on the receiver. Access is not enabled before this explicit approval.
+6. When prompted, approve screen sharing in the Android MediaProjection system prompt.
+7. Enable **Mahi Remote Input Service** manually in Android Settings → Accessibility before trying remote touch input.
 
 Android does not allow the app to silently approve MediaProjection or Accessibility access. The user must grant these permissions on the receiver.
 
@@ -122,7 +123,7 @@ A workflow definition is not proof of a successful run. Check the repository's A
 - Pairing requests require receiver approval. Commands are forwarded only for a receiver-approved active pair.
 - Android devices must sign a server nonce with their Keystore key before being registered as online.
 - Browser controller identities are ephemeral and gain no device access before code verification and receiver approval.
-- Windows WPF operator identity authentication is not yet equivalent to the Android Keystore challenge flow.
+- The backend currently rejects the Windows WPF client’s self-asserted operator fingerprint header until WPF implements signed challenge-response authentication. This intentionally prevents unauthenticated WPF sessions from connecting.
 - Device records in older databases may have an obsolete public-key value and require an explicit migration or re-enrolment.
 - The current pairing code registry is process-local. Run one backend instance until database-backed atomic pairing-code consumption is implemented.
 - A public WebSocket connection is not itself a secure remote-control session. Keep TLS enabled in production and deploy TURN separately for media traffic.
