@@ -23,15 +23,12 @@ const crypto = require('crypto');
 // Configuration
 const CLOUD_URL = process.env.AI_STUDIO_URL || 'https://ais-dev-4r5sh7f5y743hkp4umtssh-967365360779.asia-east1.run.app';
 const LOCAL_URL = process.env.LOCAL_BACKEND_URL || 'http://localhost:8080';
-const ADMIN_KEY = process.env.ADMIN_API_KEY || 'mahi-admin-secret-2026';
+const ADMIN_KEY = process.env.ADMIN_API_KEY || '';
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000', 10);
 const ONCE = process.argv.includes('--once');
 
-// Pinned NIST P-256 (prime256v1) Public Key in SPKI PEM format (Client-verifiable)
-const PINNED_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC84cOEUyeWmKqIb/p+ZScx1hYke5
-RO+qVVsv10l0UgnVCG8mpDWqvSpthM/qrIky6qder+orP6cmHSm8IQ2CLg==
------END PUBLIC KEY-----`;
+// Supply the newly rotated public key from the same secret configuration used by the publisher.
+const PINNED_PUBLIC_KEY = (process.env.UI_RELEASE_PUBLIC_KEY || '').replace(/\\n/g, '\n');
 
 function fetchJson(urlStr, options = {}) {
   return new Promise((resolve, reject) => {
@@ -59,6 +56,7 @@ function fetchJson(urlStr, options = {}) {
 
 function verifyEcdsaSignature(canonicalData, signatureBase64, publicKeyPem) {
   try {
+    if (!publicKeyPem && !PINNED_PUBLIC_KEY) return false;
     const verify = crypto.createVerify('SHA256');
     verify.update(canonicalData);
     verify.end();
@@ -74,12 +72,33 @@ function computeSha256(content) {
 }
 
 async function runSyncCycle() {
+  if (!ADMIN_KEY || !PINNED_PUBLIC_KEY) {
+    console.error('[SyncBridge] ADMIN_API_KEY and UI_RELEASE_PUBLIC_KEY are required. Sync disabled.');
+    return false;
+  }
   console.log(`[SyncBridge] Checking Google AI Studio Cloud updates at: ${CLOUD_URL}/api/v1/ui-updates/latest`);
 
   try {
     // 1. Fetch latest release manifest from Google AI Studio Cloud
     const cloudManifest = await fetchJson(`${CLOUD_URL}/api/v1/ui-updates/latest`);
     const { version, buildId, checksumSha256, signature } = cloudManifest;
+    const manifestCore = {
+      version: cloudManifest.version,
+      buildId: cloudManifest.buildId,
+      releaseDate: cloudManifest.releaseDate,
+      minNativeAppVersion: cloudManifest.minNativeAppVersion,
+      compatibleApiVersion: cloudManifest.compatibleApiVersion,
+      releaseNotes: cloudManifest.releaseNotes,
+      bundleUrl: cloudManifest.bundleUrl,
+      assets: cloudManifest.assets,
+      rollbackRef: cloudManifest.rollbackRef,
+      isMandatory: cloudManifest.isMandatory,
+      componentsUpdated: cloudManifest.componentsUpdated
+    };
+    if (!Array.isArray(cloudManifest.assets) ||
+        computeSha256(JSON.stringify(manifestCore)) !== checksumSha256) {
+      throw new Error('Cloud manifest checksum mismatch; refusing update');
+    }
 
     console.log(`[SyncBridge] Found Cloud UI Release: v${version} (Build: ${buildId})`);
 
@@ -111,18 +130,32 @@ async function runSyncCycle() {
     console.log(`[SyncBridge] Downloading UI bundle for v${version}...`);
     const bundle = await fetchJson(`${CLOUD_URL}/api/v1/ui-releases/${version}/bundle`);
 
-    if (!bundle.files || !bundle.files['index.html']) {
-      throw new Error('Downloaded bundle is missing core files');
+    if (!bundle.files || !bundle.files['index.html'] || !bundle.files['live.css'] || !bundle.files['live.js']) {
+      throw new Error('Downloaded bundle is missing required UI assets');
     }
 
-    // 5. Update local disk files in backend/public/live
-    const liveDir = path.join(__dirname, '../public/live');
-    if (fs.existsSync(liveDir)) {
-      if (bundle.files['index.html']) fs.writeFileSync(path.join(liveDir, 'index.html'), bundle.files['index.html'], 'utf-8');
-      if (bundle.files['live.css']) fs.writeFileSync(path.join(liveDir, 'live.css'), bundle.files['live.css'], 'utf-8');
-      if (bundle.files['live.js']) fs.writeFileSync(path.join(liveDir, 'live.js'), bundle.files['live.js'], 'utf-8');
-      console.log(`[SyncBridge] Updated local public/live files on Windows host.`);
+    // Verify each payload against the signed manifest before changing active files.
+    const bundleNames = { 'live/index.html': 'index.html', 'live/live.css': 'live.css', 'live/live.js': 'live.js' };
+    for (const asset of cloudManifest.assets) {
+      const fileName = bundleNames[asset.path];
+      if (!fileName || typeof bundle.files[fileName] !== 'string') {
+        throw new Error(`Unexpected or missing UI asset: ${asset.path}`);
+      }
+      const bytes = Buffer.from(bundle.files[fileName], 'utf8');
+      if (bytes.length !== asset.size || computeSha256(bytes) !== asset.sha256) {
+        throw new Error(`UI asset integrity check failed: ${asset.path}`);
+      }
     }
+    if (cloudManifest.assets.length !== 3) throw new Error('Manifest must contain exactly three UI assets');
+
+    // Stage the complete validated bundle before publishing.
+    const liveDir = path.join(__dirname, '../public/live');
+    const stageDir = path.join(__dirname, '../public/.live-stage');
+    fs.rmSync(stageDir, { recursive: true, force: true });
+    fs.mkdirSync(stageDir, { recursive: true });
+    fs.writeFileSync(path.join(stageDir, 'index.html'), bundle.files['index.html'], 'utf8');
+    fs.writeFileSync(path.join(stageDir, 'live.css'), bundle.files['live.css'], 'utf8');
+    fs.writeFileSync(path.join(stageDir, 'live.js'), bundle.files['live.js'], 'utf8');
 
     // 6. Register release into Windows local backend via admin API
     console.log(`[SyncBridge] Publishing v${version} to Windows LAN backend (${LOCAL_URL})...`);
@@ -146,12 +179,18 @@ async function runSyncCycle() {
     });
 
     if (publishRes.success) {
+      fs.mkdirSync(liveDir, { recursive: true });
+      for (const file of ['index.html', 'live.css', 'live.js']) {
+        fs.copyFileSync(path.join(stageDir, file), path.join(liveDir, file));
+      }
+      fs.rmSync(stageDir, { recursive: true, force: true });
       console.log(`================================================================`);
       console.log(`✓ SYNC COMPLETE: v${version} active on Windows LAN Backend!`);
       console.log(`✓ WebSocket broadcast emitted: All Android phones on LAN will auto-reload!`);
       console.log(`================================================================`);
       return true;
     } else {
+      fs.rmSync(stageDir, { recursive: true, force: true });
       console.error(`[SyncBridge] Failed to register release on local server:`, publishRes.error);
       return false;
     }
