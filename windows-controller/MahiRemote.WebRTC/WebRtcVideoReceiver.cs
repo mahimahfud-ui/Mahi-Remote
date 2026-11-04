@@ -4,47 +4,54 @@ using System.Windows.Media.Imaging;
 
 namespace MahiRemote.WebRTC;
 
+/// <summary>
+/// Bitmap sink for decoded WebRTC frames. The current WPF application does not
+/// yet contain a PeerConnection/decoder adapter that calls ProcessDecodedVideoBuffer.
+/// This class therefore never fabricates a phone screen, system bars, or telemetry.
+/// </summary>
 public class VideoStreamStatistics
 {
-    public int Fps { get; set; } = 30;
-    public int BitrateKbps { get; set; } = 2048;
-    public string Resolution { get; set; } = "1080x1920";
-    public int Width { get; set; } = 1080;
-    public int Height { get; set; } = 1920;
-    public int RoundTripTimeMs { get; set; } = 28;
-    public float PacketLossPercent { get; set; } = 0.005f;
-    public long TotalFramesRendered { get; set; } = 0;
-    public long TotalFramesDropped { get; set; } = 0;
-    public string IceConnectionType { get; set; } = "srflx (STUN NAT)";
+    public int Fps { get; set; }
+    public int BitrateKbps { get; set; }
+    public string Resolution { get; set; } = "unknown";
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public int RoundTripTimeMs { get; set; }
+    public float PacketLossPercent { get; set; }
+    public long TotalFramesRendered { get; set; }
+    public long TotalFramesDropped { get; set; }
+    public string IceConnectionType { get; set; } = "unknown";
 }
 
 public class IceServerConfig
 {
-    public string[] Urls { get; set; } = new[]
-    {
-        "stun:stun.l.google.com:19302",
-        "turn:turn.mahi-remote.cloud:3478"
-    };
-    public string Username { get; set; } = "mahi_operator";
-    public string Credential { get; set; } = "mahi-turn-shared-secret-auth-key";
+    // Deployment TURN details must be loaded from the authenticated runtime
+    // configuration. No shared TURN secret is embedded in source code.
+    public string[] Urls { get; set; } = new[] { "stun:stun.l.google.com:19302" };
+    public string Username { get; set; } = string.Empty;
+    public string Credential { get; set; } = string.Empty;
 }
 
 public class WebRtcVideoReceiver
 {
     public event Action<WriteableBitmap>? OnFrameBitmapReady;
     public event Action<VideoStreamStatistics>? OnStatsUpdated;
+    public event Action<string>? OnStatusChanged;
 
     public VideoStreamStatistics CurrentStats { get; } = new();
     public IceServerConfig IceConfig { get; } = new();
 
     private WriteableBitmap? _screenBitmap;
-    private bool _isRunning = false;
+    private bool _isRunning;
     private readonly object _renderLock = new();
+
+    public bool IsReceivingVideo => _isRunning && CurrentStats.TotalFramesRendered > 0;
 
     public WriteableBitmap? GetCurrentBitmap() => _screenBitmap;
 
     public void InitializeSurface(int width = 1080, int height = 1920)
     {
+        if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width));
         lock (_renderLock)
         {
             CurrentStats.Width = width;
@@ -53,32 +60,39 @@ public class WebRtcVideoReceiver
 
             Application.Current?.Dispatcher.Invoke(() =>
             {
-                _screenBitmap = new WriteableBitmap(
-                    width,
-                    height,
-                    96,
-                    96,
-                    PixelFormats.Bgra32,
-                    null
-                );
-                RenderPatternFrame(width, height);
+                _screenBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                ClearSurface();
                 OnFrameBitmapReady?.Invoke(_screenBitmap);
             });
         }
     }
 
+    /// <summary>
+    /// Marks the surface as ready for decoded frames. This method does not perform
+    /// WebRTC negotiation; the native WPF PeerConnection/decoder integration is a
+    /// remaining engineering task.
+    /// </summary>
     public void StartReceiving(string sdpAnswer)
     {
         _isRunning = true;
-        if (_screenBitmap == null)
-        {
-            InitializeSurface(1080, 1920);
-        }
+        if (_screenBitmap == null) InitializeSurface();
+        OnStatusChanged?.Invoke(
+            "Waiting for a native WebRTC decoder. The WPF receiver is not connected to a PeerConnection yet; use the browser controller for live screen viewing."
+        );
     }
 
     public void ProcessDecodedVideoBuffer(byte[] rawBgraBytes, int width, int height)
     {
-        if (!_isRunning || rawBgraBytes == null || rawBgraBytes.Length == 0) return;
+        if (!_isRunning || rawBgraBytes == null || rawBgraBytes.Length == 0 || width <= 0 || height <= 0)
+            return;
+
+        int requiredLength = checked(width * height * 4);
+        if (rawBgraBytes.Length < requiredLength)
+        {
+            CurrentStats.TotalFramesDropped++;
+            OnStatsUpdated?.Invoke(CurrentStats);
+            return;
+        }
 
         Application.Current?.Dispatcher.Invoke(() =>
         {
@@ -92,10 +106,16 @@ public class WebRtcVideoReceiver
                 _screenBitmap.Lock();
                 try
                 {
-                    unsafe
+                    var backBuffer = _screenBitmap.BackBuffer;
+                    int stride = _screenBitmap.BackBufferStride;
+                    for (int row = 0; row < height; row++)
                     {
-                        IntPtr pBackBuffer = _screenBitmap.BackBuffer;
-                        System.Runtime.InteropServices.Marshal.Copy(rawBgraBytes, 0, pBackBuffer, rawBgraBytes.Length);
+                        System.Runtime.InteropServices.Marshal.Copy(
+                            rawBgraBytes,
+                            row * width * 4,
+                            backBuffer + row * stride,
+                            width * 4
+                        );
                     }
                     _screenBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
                 }
@@ -104,61 +124,31 @@ public class WebRtcVideoReceiver
                     _screenBitmap.Unlock();
                 }
 
+                CurrentStats.Width = width;
+                CurrentStats.Height = height;
+                CurrentStats.Resolution = $"{width}x{height}";
                 CurrentStats.TotalFramesRendered++;
                 OnFrameBitmapReady?.Invoke(_screenBitmap);
+                OnStatsUpdated?.Invoke(CurrentStats);
             }
         });
     }
 
-    public void RenderPatternFrame(int width, int height)
+    private void ClearSurface()
     {
         if (_screenBitmap == null) return;
-
         _screenBitmap.Lock();
         try
         {
-            int stride = width * 4;
-            byte[] pixels = new byte[height * stride];
-
-            // Render modern dark charcoal theme screen with cyan status badge
-            for (int y = 0; y < height; y++)
+            int stride = _screenBitmap.BackBufferStride;
+            byte[] row = new byte[stride];
+            for (int y = 0; y < _screenBitmap.PixelHeight; y++)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    int idx = (y * stride) + (x * 4);
-                    // Blue, Green, Red, Alpha
-                    if (y < 80) // Top status bar
-                    {
-                        pixels[idx] = 0x22;     // B
-                        pixels[idx + 1] = 0x1B; // G
-                        pixels[idx + 2] = 0x16; // R
-                        pixels[idx + 3] = 0xFF; // A
-                    }
-                    else if (y > height - 100) // Bottom nav bar
-                    {
-                        pixels[idx] = 0x22;
-                        pixels[idx + 1] = 0x1B;
-                        pixels[idx + 2] = 0x16;
-                        pixels[idx + 3] = 0xFF;
-                    }
-                    else
-                    {
-                        // Background wallpaper gradient
-                        byte grad = (byte)(18 + (y * 15 / height));
-                        pixels[idx] = (byte)(grad + 6);
-                        pixels[idx + 1] = grad;
-                        pixels[idx + 2] = (byte)(grad - 4);
-                        pixels[idx + 3] = 0xFF;
-                    }
-                }
+                System.Runtime.InteropServices.Marshal.Copy(
+                    row, 0, _screenBitmap.BackBuffer + y * stride, stride
+                );
             }
-
-            unsafe
-            {
-                IntPtr pBackBuffer = _screenBitmap.BackBuffer;
-                System.Runtime.InteropServices.Marshal.Copy(pixels, 0, pBackBuffer, pixels.Length);
-            }
-            _screenBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+            _screenBitmap.AddDirtyRect(new Int32Rect(0, 0, _screenBitmap.PixelWidth, _screenBitmap.PixelHeight));
         }
         finally
         {
@@ -166,19 +156,19 @@ public class WebRtcVideoReceiver
         }
     }
 
-    public void UpdateMetrics(int fps, int bitrateKbps, int rttMs, float packetLoss = 0.005f)
+    public void UpdateMetrics(int fps, int bitrateKbps, int rttMs, float packetLoss = 0f)
     {
-        CurrentStats.Fps = fps;
-        CurrentStats.BitrateKbps = bitrateKbps;
-        CurrentStats.RoundTripTimeMs = rttMs;
-        CurrentStats.PacketLossPercent = packetLoss;
-        CurrentStats.TotalFramesRendered += fps;
-
+        // Accept metrics only from a future real RTCP statistics collector.
+        CurrentStats.Fps = Math.Max(0, fps);
+        CurrentStats.BitrateKbps = Math.Max(0, bitrateKbps);
+        CurrentStats.RoundTripTimeMs = Math.Max(0, rttMs);
+        CurrentStats.PacketLossPercent = Math.Max(0f, packetLoss);
         OnStatsUpdated?.Invoke(CurrentStats);
     }
 
     public void Stop()
     {
         _isRunning = false;
+        OnStatusChanged?.Invoke("Video receiver stopped.");
     }
 }
