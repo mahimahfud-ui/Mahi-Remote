@@ -130,7 +130,11 @@ fun ControllerViewerScreen(viewModel: MahiViewModel) {
                             )
                         }
                         Text(
-                            text = "${remoteMetrics.roundTripTimeMs} ms • ${remoteMetrics.currentFps} FPS • ${remoteMetrics.bitrateKbps / 1000f} Mbps",
+                            text = if (remoteMetrics.roundTripTimeMs > 0 || remoteMetrics.currentFps > 0 || remoteMetrics.bitrateKbps > 0) {
+                                "${remoteMetrics.roundTripTimeMs.takeIf { it > 0 }?.let { "$it ms" } ?: "RTT N/A"} • ${remoteMetrics.currentFps.takeIf { it > 0 }?.let { "$it FPS" } ?: "FPS N/A"} • ${remoteMetrics.bitrateKbps.takeIf { it > 0 }?.let { "$it kbps" } ?: "Bitrate N/A"}"
+                            } else {
+                                "LIVE STREAM • PERFORMANCE STATS UNAVAILABLE"
+                            },
                             color = CyanAccent,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace
@@ -697,10 +701,10 @@ private fun RemoteDiagnosticsPane(viewModel: MahiViewModel) {
             }
         }
 
-        val battery = telemetry?.batteryPercent ?: 88
-        val temp = telemetry?.batteryTempC ?: 34.0f
-        val storage = telemetry?.storageFree ?: "38.2 GB"
-        val rtt = telemetry?.roundTripTimeMs ?: 32
+        val battery = telemetry?.batteryPercent?.takeIf { it in 0..100 }
+        val temp = telemetry?.batteryTempC?.takeIf { it >= 0f }
+        val storage = telemetry?.storageFree?.takeIf { it.isNotBlank() && it != "Unknown" }
+        val rtt = telemetry?.roundTripTimeMs?.takeIf { it > 0 }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -712,17 +716,24 @@ private fun RemoteDiagnosticsPane(viewModel: MahiViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                TelemetryMetricItem("Battery Health", "$battery% • ${if (battery > 20) "NORMAL" else "LOW"}")
+                TelemetryMetricItem(
+                    "Battery Level",
+                    battery?.let { "$it% • REPORTED" } ?: "Not reported"
+                )
                 LinearProgressIndicator(
-                    progress = { battery / 100f },
+                    progress = { (battery ?: 0) / 100f },
                     modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = if (battery > 20) MintAccent else ErrorCoral,
+                    color = when {
+                        battery == null -> TextMuted
+                        battery > 20 -> MintAccent
+                        else -> ErrorCoral
+                    },
                     trackColor = DarkSurfaceElevated
                 )
 
-                TelemetryMetricItem("Thermal Subsystem", "$temp °C • OPTIMAL")
-                TelemetryMetricItem("Shared Storage Free", "$storage Available")
-                TelemetryMetricItem("Network Round-Trip Latency", "$rtt ms • WebRTC DataChannel Active")
+                TelemetryMetricItem("Thermal Subsystem", temp?.let { "$it °C • REPORTED" } ?: "Not reported")
+                TelemetryMetricItem("Shared Storage Free", storage?.let { "$it Available" } ?: "Not reported")
+                TelemetryMetricItem("Network Round-Trip Latency", rtt?.let { "$it ms • MEASURED" } ?: "Not measured")
             }
         }
     }
