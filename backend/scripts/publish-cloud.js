@@ -14,6 +14,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const dotenv = require('dotenv');
+const envCandidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../.env')];
+const envPath = envCandidates.find((candidate) => fs.existsSync(candidate));
+if (envPath) dotenv.config({ path: envPath });
+
 // Resolve arguments
 const args = process.argv.slice(2);
 function getArg(name, def) {
