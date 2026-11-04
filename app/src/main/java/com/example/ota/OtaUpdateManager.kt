@@ -22,6 +22,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.zip.ZipFile
 import java.util.concurrent.TimeUnit
 
 data class OtaReleaseInfo(
@@ -170,11 +171,40 @@ class OtaUpdateManager(
                     val digest = MessageDigest.getInstance("SHA-256")
                     val hashBytes = digest.digest(apkFile.readBytes())
                     val computedHash = hashBytes.joinToString("") { "%02x".format(it) }
+                    if (!computedHash.equals(release.sha256, ignoreCase = true)) {
+                        apkFile.delete()
+                        _otaStatusMessage.value = "APK integrity check failed. The downloaded file was rejected."
+                        AuditLogger.log(
+                            category = "OTA",
+                            action = "APK_HASH_MISMATCH",
+                            details = "Expected ${release.sha256.take(16)}… but received ${computedHash.take(16)}…",
+                            severity = AuditSeverity.CRITICAL
+                        )
+                        return@launch
+                    }
+                    if (release.fileSizeBytes > 0L && apkFile.length() != release.fileSizeBytes) {
+                        apkFile.delete()
+                        _otaStatusMessage.value = "APK size does not match the published release. Update rejected."
+                        AuditLogger.log("OTA", "APK_SIZE_MISMATCH", "Published and downloaded APK sizes differ", AuditSeverity.CRITICAL)
+                        return@launch
+                    }
+                    try {
+                        ZipFile(apkFile).use { zip ->
+                            if (zip.getEntry("AndroidManifest.xml") == null) {
+                                throw IllegalStateException("AndroidManifest.xml is missing")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        apkFile.delete()
+                        _otaStatusMessage.value = "Downloaded file is not a valid Android APK archive."
+                        AuditLogger.log("OTA", "APK_ARCHIVE_INVALID", e.message ?: "Invalid APK archive", AuditSeverity.CRITICAL)
+                        return@launch
+                    }
 
                     AuditLogger.log(
                         category = "OTA",
                         action = "APK_VERIFIED",
-                        details = "Downloaded v${release.versionName}. Size: ${apkFile.length()} bytes. Hash: ${computedHash.take(16)}...",
+                        details = "Downloaded v${release.versionName}. Size and SHA-256 match the signed release metadata.",
                         severity = AuditSeverity.SECURITY
                     )
 
