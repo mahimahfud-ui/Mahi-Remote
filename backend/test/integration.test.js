@@ -192,11 +192,24 @@ async function runTests() {
         sessionId: 'TEST-SESSION-001',
         receiverName: 'Android Receiver Test',
         fingerprint: receiverAuth.fingerprint,
+        approvedScopes: ['Screen Mirroring', 'Remote Interaction'],
       },
     }));
     const accepted = await acceptedPromise;
     assert.strictEqual(accepted.senderId, receiverId);
     console.log('✓ PAIR_ACCEPT establishes an owner-approved pair');
+
+    // Permissions not approved by the owner must remain unavailable.
+    wsController.send(JSON.stringify({
+      type: 'FILE_COMMAND',
+      targetDeviceId: receiverId,
+      command: { action: 'LIST', path: '/' },
+    }));
+    const fileBlocked = await waitForMessage(wsController, message =>
+      message.type === 'COMMAND_ACK' && /File Transfer/.test(message.error || '')
+    );
+    assert.strictEqual(fileBlocked.success, false);
+    console.log('✓ unapproved file-transfer scope is blocked');
 
     // After consent, real signaling and input payloads are forwarded to the paired peer.
     const inputPromise = waitForMessage(wsReceiver, message => message.type === 'INPUT_EVENT');
