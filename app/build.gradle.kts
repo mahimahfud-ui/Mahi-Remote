@@ -14,7 +14,7 @@ fun readDotEnvValue(key: String): String? {
     if (!envFile.isFile) continue
     val prefix = "$key="
     val line = envFile.readLines().firstOrNull { it.trim().startsWith(prefix) } ?: continue
-    return line.trim().removePrefix(prefix).trim().trim('"', '\\'')
+    return line.trim().removePrefix(prefix).trim()
   }
   return null
 }
