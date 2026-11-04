@@ -73,22 +73,47 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX idx_audit_logs_device ON audit_logs(device_id, created_at DESC);
 
--- Enable Row Level Security (RLS)
+-- Enable Row Level Security (RLS). These tables contain device identities,
+-- pairing codes, session data, and audit logs. They must only be accessed by
+-- the trusted backend service using a server-side database role.
 ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trusted_controllers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pairing_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE support_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Zero-trust RLS policies
-CREATE POLICY "Public can query device public key by device_id"
-    ON devices FOR SELECT USING (true);
+-- Remove the former permissive policies. In particular, public SELECT policies
+-- on devices/audit logs exposed identifiers and operational history.
+DROP POLICY IF EXISTS "Public can query device public key by device_id" ON devices;
+DROP POLICY IF EXISTS "Devices can update own presence" ON devices;
+DROP POLICY IF EXISTS "Audit logs can be appended" ON audit_logs;
+DROP POLICY IF EXISTS "Audit logs read restricted to session owners" ON audit_logs;
 
-CREATE POLICY "Devices can update own presence"
-    ON devices FOR UPDATE USING (auth.uid() = id);
+-- RLS with no end-user policies denies direct access by anon/authenticated roles.
+REVOKE ALL PRIVILEGES ON TABLE devices, trusted_controllers, pairing_codes, support_sessions, audit_logs FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON SEQUENCE audit_logs_id_seq FROM PUBLIC;
 
-CREATE POLICY "Audit logs can be appended"
-    ON audit_logs FOR INSERT WITH CHECK (true);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL PRIVILEGES ON TABLE devices, trusted_controllers, pairing_codes, support_sessions, audit_logs FROM anon;
+    REVOKE ALL PRIVILEGES ON SEQUENCE audit_logs_id_seq FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL PRIVILEGES ON TABLE devices, trusted_controllers, pairing_codes, support_sessions, audit_logs FROM authenticated;
+    REVOKE ALL PRIVILEGES ON SEQUENCE audit_logs_id_seq FROM authenticated;
+  END IF;
+END
+$$;
 
-CREATE POLICY "Audit logs read restricted to session owners"
-    ON audit_logs FOR SELECT USING (true);
+-- Grant access only to the backend's deployment role. On Supabase use
+-- service_role (which bypasses RLS); on standalone PostgreSQL use the
+-- dedicated backend login as table owner or explicitly grant it access.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE devices, trusted_controllers, pairing_codes, support_sessions, audit_logs TO service_role;
+    GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO service_role;
+  END IF;
+END
+$$;
