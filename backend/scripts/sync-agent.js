@@ -20,6 +20,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const dotenv = require('dotenv');
+const envCandidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../.env')];
+const envPath = envCandidates.find((candidate) => fs.existsSync(candidate));
+if (envPath) dotenv.config({ path: envPath });
+
 // Configuration
 const CLOUD_URL = process.env.AI_STUDIO_URL || 'https://ais-dev-4r5sh7f5y743hkp4umtssh-967365360779.asia-east1.run.app';
 const LOCAL_URL = process.env.LOCAL_BACKEND_URL || 'http://localhost:8080';
