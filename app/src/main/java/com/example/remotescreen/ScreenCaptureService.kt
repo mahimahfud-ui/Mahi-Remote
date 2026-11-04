@@ -8,10 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
-import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -25,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class ScreenCaptureService : Service() {
 
+    @Volatile private var projectionActive = false
     private var webRtcManager: com.example.webrtc.WebRtcSessionManager? = null
 
     companion object {
@@ -47,8 +44,7 @@ class ScreenCaptureService : Service() {
         var onWebRtcSignalGenerated: ((type: String, payload: String) -> Unit)? = null
         var onDisplayInfoGenerated: ((payload: String) -> Unit)? = null
 
-        fun isStreaming(): Boolean = _streamState.value is ScreenStreamState.Connecting ||
-            _streamState.value is ScreenStreamState.Active
+        fun isStreaming(): Boolean = activeInstance?.projectionActive == true
 
         fun stop(context: Context) {
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
@@ -178,10 +174,12 @@ class ScreenCaptureService : Service() {
             sendBroadcast(displayBroadcast)
 
             // Initialize WebRTC screen capturer and session pipeline
+            projectionActive = false
             _streamState.value = ScreenStreamState.Connecting
             webRtcManager = com.example.webrtc.WebRtcSessionManager(
                 context = this,
                 onCaptureStopped = {
+                    projectionActive = false
                     _streamState.value = ScreenStreamState.Stopped
                     AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission", AuditSeverity.WARNING)
                 },
@@ -202,6 +200,7 @@ class ScreenCaptureService : Service() {
                 height = preset.height,
                 fps = preset.fps
             ) ?: throw IllegalStateException("Android MediaProjection could not initialize a video track")
+            projectionActive = true
 
             // ICE state is the real connection signal. Do not fabricate frame,
             // bitrate, RTT or packet-loss values while the peer is negotiating.
@@ -245,6 +244,13 @@ class ScreenCaptureService : Service() {
 
             AuditLogger.log("SCREEN", "CAPTURE_INITIALIZED", "MediaProjection video source initialized at ${metrics.widthPixels}x${metrics.heightPixels} (rot: $displayRotation); waiting for ICE connection", AuditSeverity.INFO)
         } catch (e: Exception) {
+            projectionActive = false
+            try {
+                webRtcManager?.close()
+            } catch (_: Exception) {
+                // Preserve the original capture error.
+            }
+            webRtcManager = null
             _streamState.value = ScreenStreamState.Error(e.message ?: "Failed to start MediaProjection")
             AuditLogger.log("SCREEN", "ERROR", "Failed to start MediaProjection: ${e.message}", AuditSeverity.CRITICAL)
         }
@@ -252,10 +258,11 @@ class ScreenCaptureService : Service() {
 
 
     private fun stopCapture() {
+        projectionActive = false
         try {
             webRtcManager?.close()
             webRtcManager = null
-                  } catch (e: Exception) {
+        } catch (e: Exception) {
             // Ignore clean teardown exceptions
         }
         _streamState.value = ScreenStreamState.Stopped
