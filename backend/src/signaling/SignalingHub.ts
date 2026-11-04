@@ -17,6 +17,8 @@ interface PairRecord {
   controllerId: string;
   receiverId: string;
   createdAt: number;
+  requestedScopes: string[];
+  approvedScopes: string[];
 }
 
 interface PendingDeviceAuth {
@@ -41,6 +43,37 @@ export class SignalingHub {
   constructor(private wss: WebSocketServer) {
     this.init();
     UiReleaseService.setUpdateBroadcaster((release) => this.broadcastUiUpdate(release));
+  }
+
+  private normalizeRequestedScopes(value: unknown): string[] {
+    const allowed = new Set(['Screen Mirroring', 'Remote Interaction', 'File Transfer', 'Diagnostics']);
+    if (!Array.isArray(value)) return ['Screen Mirroring', 'Remote Interaction'];
+    const scopes = [...new Set(value.map((item) => String(item)).filter((item) => allowed.has(item)))];
+    return scopes.length ? scopes : ['Screen Mirroring'];
+  }
+
+  private requiredScopeForMessage(type: string): string | null {
+    switch (type) {
+      case 'SDP_OFFER':
+      case 'SDP_ANSWER':
+      case 'ICE_CANDIDATE':
+      case 'DISPLAY_INFO':
+      case 'RESOLUTION_SYNC':
+        return 'Screen Mirroring';
+      case 'INPUT_EVENT':
+      case 'APP_COMMAND':
+      case 'APP_LIST_RESPONSE':
+        return 'Remote Interaction';
+      case 'FILE_COMMAND':
+      case 'FILE_LIST_RESPONSE':
+      case 'FILE_CHUNK_RESPONSE':
+        return 'File Transfer';
+      case 'DIAGNOSTICS_RUN':
+      case 'DIAGNOSTICS_RESULT':
+        return 'Diagnostics';
+      default:
+        return null;
+    }
   }
 
   private pairKey(controllerId: string, receiverId: string): string {
@@ -308,7 +341,14 @@ export class SignalingHub {
       return;
     }
 
-    const pair: PairRecord = { controllerId: sender.id, receiverId, createdAt: Date.now() };
+    const requestedScopes = this.normalizeRequestedScopes(message.requestedScopes || payload.requestedScopes);
+    const pair: PairRecord = {
+      controllerId: sender.id,
+      receiverId,
+      createdAt: Date.now(),
+      requestedScopes,
+      approvedScopes: [],
+    };
     this.pendingPairs.set(key, pair);
     this.send(receiver, {
       type: 'PAIR_REQUEST',
@@ -318,9 +358,7 @@ export class SignalingHub {
       operatorName: String(message.operatorName || message.controllerName || payload.operatorName || 'Mahi Controller').slice(0, 100),
       operatorLocation: String(message.operatorLocation || payload.operatorLocation || 'Remote Controller').slice(0, 100),
       fingerprint: sender.fingerprint || String(message.fingerprint || payload.fingerprint || ''),
-      requestedScopes: Array.isArray(message.requestedScopes) ? message.requestedScopes :
-        Array.isArray(payload.requestedScopes) ? payload.requestedScopes :
-          ['Screen Mirroring', 'Remote Interaction'],
+      requestedScopes,
       timestamp: Date.now(),
     });
     this.send(sender, { type: 'PAIR_PENDING', receiverId, expiresAt: Date.now() + PAIRING_CODE_TTL_MS });
@@ -345,7 +383,14 @@ export class SignalingHub {
       this.send(sender, { type: 'PAIR_ERROR', error: 'A pairing request is already pending' });
       return;
     }
-    const pair: PairRecord = { controllerId: sender.id, receiverId, createdAt: Date.now() };
+    const requestedScopes = this.normalizeRequestedScopes(message.requestedScopes || payload.requestedScopes);
+    const pair: PairRecord = {
+      controllerId: sender.id,
+      receiverId,
+      createdAt: Date.now(),
+      requestedScopes,
+      approvedScopes: [],
+    };
     this.pendingPairs.set(key, pair);
     this.send(receiver, {
       type: 'PAIR_REQUEST',
@@ -355,9 +400,7 @@ export class SignalingHub {
       operatorName: String(message.operatorName || payload.operatorName || 'Mahi Controller').slice(0, 100),
       operatorLocation: String(message.operatorLocation || payload.operatorLocation || 'Remote Controller').slice(0, 100),
       fingerprint: sender.fingerprint || String(message.operatorFingerprint || payload.fingerprint || ''),
-      requestedScopes: Array.isArray(message.requestedScopes) ? message.requestedScopes :
-        Array.isArray(payload.requestedScopes) ? payload.requestedScopes :
-          ['Screen Mirroring', 'Remote Interaction'],
+      requestedScopes,
       timestamp: Date.now(),
     });
   }
@@ -426,12 +469,23 @@ export class SignalingHub {
         });
         return;
       }
-      this.activePairs.set(key, pending);
+      const approvedScopes = Array.isArray(payload.approvedScopes)
+        ? [...new Set(payload.approvedScopes.map((scope: unknown) => String(scope))
+            .filter((scope: string) => pending.requestedScopes.includes(scope)))]
+        : [];
+      if (approvedScopes.length === 0) {
+        this.send(sender, { type: 'PAIR_ERROR', error: 'No requested permissions were approved' });
+        this.send(this.clients.get(controllerId), { type: 'PAIR_ERROR', error: 'Receiver did not approve any requested permissions' });
+        return;
+      }
+      const approvedPair: PairRecord = { ...pending, approvedScopes };
+      this.activePairs.set(key, approvedPair);
       this.send(this.clients.get(controllerId), {
         type: 'PAIR_ACCEPT',
         sender: receiverId,
         senderId: receiverId,
-        payload: message.payload || {},
+        payload: { ...payload, approvedScopes },
+        approvedScopes,
         sessionId: payload.sessionId || message.sessionId,
         receiverName: payload.receiverName || message.receiverName,
         fingerprint: payload.fingerprint || message.fingerprint,
@@ -469,6 +523,17 @@ export class SignalingHub {
     ]);
     if (!allowedSessionMessages.has(type)) {
       this.send(sender, { type: 'PROTOCOL_ERROR', error: `Unsupported message type: ${type}` });
+      return;
+    }
+
+    const requiredScope = this.requiredScopeForMessage(type);
+    if (requiredScope && !pair.approvedScopes.includes(requiredScope)) {
+      this.send(sender, {
+        type: 'COMMAND_ACK',
+        sequence: message.sequence,
+        success: false,
+        error: `Receiver did not approve the required permission: ${requiredScope}`,
+      });
       return;
     }
 
