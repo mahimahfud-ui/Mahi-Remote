@@ -192,6 +192,10 @@ export class SignalingHub {
           ws.close(1008, 'Invalid device identity');
           return;
         }
+        if (!AuthService.checkRateLimit(`device-auth:${req.socket.remoteAddress || 'unknown'}`, 20, 5 * 60 * 1000)) {
+          ws.close(1013, 'Too many device authentication attempts');
+          return;
+        }
         const publicKeyBase64 = String(req.headers['x-device-public-key'] || '');
         const fingerprint = String(req.headers['x-device-fingerprint'] || '');
         const deviceName = String(req.headers['x-device-name'] || 'Android Phone').slice(0, 100);
@@ -254,7 +258,8 @@ export class SignalingHub {
 
       ws.on('close', () => {
         this.pendingDeviceAuth.delete(ws);
-        if (client) this.handleClientClose(client.id, ws, client);
+        const attached = client || [...this.clients.values()].find((candidate) => candidate.ws === ws);
+        if (attached) this.handleClientClose(attached.id, ws, attached);
       });
     });
   }
@@ -288,6 +293,12 @@ export class SignalingHub {
     }
 
     const key = this.pairKey(sender.id, receiverId);
+    for (const [pendingKey, pendingPair] of this.pendingPairs) {
+      if (Date.now() - pendingPair.createdAt > PAIRING_CODE_TTL_MS) {
+        this.pendingPairs.delete(pendingKey);
+        this.send(this.clients.get(pendingPair.controllerId), { type: 'PAIR_ERROR', error: 'Pairing request expired before approval' });
+      }
+    }
     if (this.pendingPairs.has(key)) {
       this.send(sender, { type: 'PAIR_ERROR', error: 'A pairing request is already pending' });
       return;
@@ -396,6 +407,12 @@ export class SignalingHub {
       const pending = this.pendingPairs.get(key);
       if (!pending || pending.receiverId !== receiverId) {
         this.send(sender, { type: 'PAIR_ERROR', error: 'No matching pending controller request exists' });
+        return;
+      }
+      if (Date.now() - pending.createdAt > PAIRING_CODE_TTL_MS) {
+        this.pendingPairs.delete(key);
+        this.send(sender, { type: 'PAIR_ERROR', error: 'Pairing request expired before approval' });
+        this.send(this.clients.get(controllerId), { type: 'PAIR_ERROR', error: 'Pairing request expired before approval' });
         return;
       }
       this.pendingPairs.delete(key);
