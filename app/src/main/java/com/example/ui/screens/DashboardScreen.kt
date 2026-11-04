@@ -98,7 +98,7 @@ fun DashboardScreen(
         // Status Hero Banner
         HeroStatusBanner(
             activeSession = activeSession,
-            isStreaming = isScreenCaptureActive,
+            isStreaming = streamState is ScreenStreamState.Active,
             deviceId = viewModel.identity.deviceId,
             onEmergencyDisconnect = { viewModel.setShowDisconnectDialog(true) }
         )
@@ -114,6 +114,8 @@ fun DashboardScreen(
                     streamState is ScreenStreamState.Connecting -> "Negotiating WebRTC…"
                     streamState is ScreenStreamState.Active -> "Connected • stats unavailable"
                     streamState is ScreenStreamState.Error && isScreenCaptureActive -> "Connection error • stop sharing"
+                    streamState is ScreenStreamState.Error -> "Capture unavailable"
+                    streamState is ScreenStreamState.Stopped -> "Stopped"
                     else -> "MediaProjection"
                 },
                 icon = Icons.Default.CastConnected,
