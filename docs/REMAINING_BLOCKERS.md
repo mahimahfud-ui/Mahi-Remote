@@ -38,7 +38,7 @@ Still requires physical verification:
 
 **Prototype-only for live video.** The WPF signaling shell does not create a native PeerConnection, decode the Android video track or feed decoded frames into the bitmap receiver. The fake generated phone screen and fake TURN secret were removed. The bitmap sink is only a future frame-rendering endpoint. Use the browser controller for the current desktop-to-Android path until native WPF WebRTC is implemented and verified.
 
-Windows operator identity also still relies on an operator fingerprint header. It is not yet protected by the same signed nonce challenge used by Android devices.
+The backend now rejects the WPF client's self-asserted operator fingerprint header until a signed nonce challenge-response flow is implemented in the Windows client. WPF therefore cannot currently connect as a trusted controller.
 
 ## Security and deployment blockers
 
@@ -86,7 +86,7 @@ During this review the GitHub Actions API returned zero workflow runs for the re
 ## Immediate engineering backlog
 
 1. Run GitHub Actions and resolve any backend, Kotlin/Gradle or .NET build failures.
-2. Fetch dynamic ICE servers in Android sender and controller before creating PeerConnections.
+2. Verify dynamic ICE/TURN credentials and successful candidate selection on LAN, home broadband, cellular and symmetric-NAT networks.
 3. Complete two-physical-phone and browser-to-phone test sessions; capture logs and real RTCP/video evidence.
 4. Implement real Android RTCP stats; do not infer FPS/bitrate from the selected preset.
 5. Implement Windows WPF native WebRTC PeerConnection, H.264 decode and frame delivery; add signed operator identity authentication.
