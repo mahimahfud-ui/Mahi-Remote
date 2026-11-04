@@ -27,8 +27,11 @@ apiRouter.get('/health', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/devices', (req: Request, res: Response) => {
-  const devices = DeviceService.listDevices();
-  res.json({ devices });
+  const authHeader = req.headers['authorization'] || (req.headers['x-admin-key'] as string);
+  if (!UiReleaseService.validateAdminKey(authHeader)) {
+    return res.status(401).json({ error: 'Admin authentication required to enumerate registered devices' });
+  }
+  return res.json({ devices: DeviceService.listDevices() });
 });
 
 // -------------------------------------------------------------
@@ -119,17 +122,29 @@ apiRouter.get('/ui-releases/:version/bundle', (req: Request, res: Response) => {
   const liveCssPath = path.join(publicDir, 'live/live.css');
   const liveJsPath = path.join(publicDir, 'live/live.js');
 
-  const bundlePayload = {
+  const assetFiles: Record<string, string> = {
+    'live/index.html': liveIndexPath,
+    'live/live.css': liveCssPath,
+    'live/live.js': liveJsPath,
+  };
+  const files: Record<string, string> = {};
+  for (const asset of release.assets) {
+    const filePath = assetFiles[asset.path];
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({ error: `Published UI asset is missing: ${asset.path}` });
+    }
+    const bytes = fs.readFileSync(filePath);
+    if (bytes.length !== asset.size || UiReleaseService.computeSha256(bytes) !== asset.sha256) {
+      return res.status(409).json({ error: `Published UI asset changed after signing: ${asset.path}` });
+    }
+    files[path.basename(asset.path)] = bytes.toString('utf-8');
+  }
+
+  return res.json({
     manifest: release,
     timestamp: new Date().toISOString(),
-    files: {
-      'index.html': fs.existsSync(liveIndexPath) ? fs.readFileSync(liveIndexPath, 'utf-8') : '<!-- Mahi Live UI -->',
-      'live.css': fs.existsSync(liveCssPath) ? fs.readFileSync(liveCssPath, 'utf-8') : '/* Mahi Live CSS */',
-      'live.js': fs.existsSync(liveJsPath) ? fs.readFileSync(liveJsPath, 'utf-8') : '// Mahi Live JS',
-    }
-  };
-
-  return res.json(bundlePayload);
+    files,
+  });
 });
 
 // Admin-Authenticated Live UI Release Publishing
