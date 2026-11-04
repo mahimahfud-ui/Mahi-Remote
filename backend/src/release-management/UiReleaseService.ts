@@ -262,6 +262,18 @@ export class UiReleaseService {
       return { success: false, error: 'A release must include valid SHA-256 and size metadata for index.html, live.css, and live.js' };
     }
 
+    const publicDir = path.join(__dirname, '../../public');
+    for (const asset of assets) {
+      const assetPath = path.resolve(publicDir, asset.path);
+      if (!assetPath.startsWith(path.resolve(publicDir) + path.sep) || !fs.existsSync(assetPath)) {
+        return { success: false, error: `UI asset is missing or outside the public bundle: ${asset.path}` };
+      }
+      const bytes = fs.readFileSync(assetPath);
+      if (bytes.length !== asset.size || this.computeSha256(bytes) !== asset.sha256) {
+        return { success: false, error: `UI asset checksum/size does not match the active bundle: ${asset.path}` };
+      }
+    }
+
     const previousVersion = this.activeVersion;
 
     const newManifest = this.createManifestObject(
