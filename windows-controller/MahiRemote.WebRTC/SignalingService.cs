@@ -52,7 +52,7 @@ public class SignalingService
         try
         {
             await _ws.ConnectAsync(new Uri(serverUrl), _cts.Token);
-            OnStatusChanged?.Invoke("Connected & Authenticated with Signaling Server");
+            OnStatusChanged?.Invoke("Connected to signaling server; device owner approval is still required.");
 
             _ = ReceiveLoopAsync(_cts.Token);
             _ = HeartbeatLoopAsync(_cts.Token);
