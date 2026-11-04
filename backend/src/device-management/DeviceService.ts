@@ -79,6 +79,29 @@ export class DeviceService {
     }
   }
 
+  public static peekPairingCode(code: string): string | null {
+    const record = this.pairingCodes.get(code);
+    if (!record) return null;
+    if (Date.now() > record.expiresAt) {
+      this.pairingCodes.delete(code);
+      return null;
+    }
+    return record.deviceId;
+  }
+
+  public static markDeviceOffline(deviceId: string): void {
+    const device = this.devices.get(deviceId);
+    if (device) {
+      this.devices.set(deviceId, { ...device, isOnline: false });
+    }
+    if (this.dbPool) {
+      this.dbPool.query(
+        `UPDATE devices SET is_online = false, last_seen_at = NOW() WHERE device_id = $1`,
+        [deviceId]
+      ).catch(e => console.warn('[DeviceService] DB error in markDeviceOffline:', e));
+    }
+  }
+
   public static validateAndConsumePairingCode(code: string): string | null {
     const record = this.pairingCodes.get(code);
     if (!record) return null;
