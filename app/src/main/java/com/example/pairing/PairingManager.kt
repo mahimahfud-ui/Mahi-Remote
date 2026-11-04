@@ -121,6 +121,10 @@ class PairingManager(private val context: Context) {
         AuditLogger.log("SESSION", "ESTABLISHED", "Session ${session.sessionId.take(8)} authorized for ${request.operatorName}", AuditSeverity.SECURITY)
     }
 
+    fun setScreenStreaming(active: Boolean) {
+        _activeSession.value = _activeSession.value?.copy(isScreenStreaming = active)
+    }
+
     fun rejectRequest(request: OperatorRequest) {
         _pendingRequest.value = null
         AuditLogger.log("PAIRING", "REJECTED_BY_USER", "Denied connection from ${request.operatorName}", AuditSeverity.WARNING)
