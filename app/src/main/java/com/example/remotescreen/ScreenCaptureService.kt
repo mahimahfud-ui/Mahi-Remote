@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class ScreenCaptureService : Service() {
 
     @Volatile private var projectionActive = false
+    @Volatile private var peerConnectionReady = false
     private var webRtcManager: com.example.webrtc.WebRtcSessionManager? = null
 
     companion object {
@@ -45,6 +46,8 @@ class ScreenCaptureService : Service() {
         val streamState: StateFlow<ScreenStreamState> = _streamState.asStateFlow()
 
         private var activeInstance: ScreenCaptureService? = null
+        private val pendingSignalLock = Any()
+        private val pendingSignals = mutableListOf<Pair<String, String>>()
         var onWebRtcSignalGenerated: ((type: String, payload: String) -> Unit)? = null
         var onDisplayInfoGenerated: ((payload: String) -> Unit)? = null
 
@@ -58,7 +61,24 @@ class ScreenCaptureService : Service() {
         }
 
         fun handleIncomingSignalFromViewModel(type: String, payload: String) {
-            activeInstance?.handleIncomingSignal(type, payload)
+            val service = activeInstance
+            if (service == null || !service.peerConnectionReady) {
+                synchronized(pendingSignalLock) {
+                    if (pendingSignals.size >= 64) pendingSignals.removeAt(0)
+                    pendingSignals.add(type to payload)
+                }
+                return
+            }
+            service.handleIncomingSignal(type, payload)
+        }
+
+        private fun drainPendingSignals(service: ScreenCaptureService) {
+            val queued = synchronized(pendingSignalLock) {
+                pendingSignals.toList().also { pendingSignals.clear() }
+            }
+            queued.forEach { (type, payload) ->
+                service.handleIncomingSignal(type, payload)
+            }
         }
     }
 
@@ -107,7 +127,7 @@ class ScreenCaptureService : Service() {
                 val type = intent.getStringExtra(EXTRA_SIGNAL_TYPE)
                 val payload = intent.getStringExtra(EXTRA_SIGNAL_PAYLOAD)
                 if (type != null && payload != null) {
-                    handleIncomingSignal(type, payload)
+                    handleIncomingSignalFromViewModel(type, payload)
                 }
             }
         }
@@ -184,6 +204,7 @@ class ScreenCaptureService : Service() {
                 context = this,
                 onCaptureStopped = {
                     projectionActive = false
+                    peerConnectionReady = false
                     _streamState.value = ScreenStreamState.Stopped
                     AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission", AuditSeverity.WARNING)
                 },
@@ -249,6 +270,8 @@ class ScreenCaptureService : Service() {
                             }
                         }
                     )
+                    peerConnectionReady = true
+                    drainPendingSignals(this@ScreenCaptureService)
                     AuditLogger.log("SCREEN", "PEER_CONNECTION_INITIALIZED", "WebRTC sender configured with ${iceServers.size} ICE entries", AuditSeverity.INFO)
                 }
             }, "MahiIceConfig").start()
@@ -270,6 +293,10 @@ class ScreenCaptureService : Service() {
 
     private fun stopCapture() {
         projectionActive = false
+        peerConnectionReady = false
+        synchronized(pendingSignalLock) {
+            pendingSignals.clear()
+        }
         try {
             webRtcManager?.close()
             webRtcManager = null
