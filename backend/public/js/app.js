@@ -513,16 +513,8 @@
       }
     });
 
-    // Prefer WebRTC DataChannel for minimum round-trip latency
-    if (state.dataChannel && state.dataChannel.readyState === 'open') {
-      try {
-        state.dataChannel.send(payload);
-        return;
-      } catch (e) {
-        console.warn('[WebRTC] DataChannel send failed, using WebSocket fallback:', e);
-      }
-    }
-
+    // Keep remote input on the authenticated, owner-approved signaling route.
+    // The Android receiver does not yet expose a DataChannel input dispatcher.
     sendWs(JSON.parse(payload));
   }
 
