@@ -310,17 +310,17 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                         val payloadObj = if (root.has("payload") && root.get("payload") is JSONObject) root.getJSONObject("payload") else root
                         if (!payloadObj.has("battery") && !payloadObj.has("temp") && !payloadObj.has("storage")) {
                             _remoteTelemetry.value = null
-                            break
+                        } else {
+                            val battery = payloadObj.optInt("battery", -1)
+                            val temp = payloadObj.optDouble("temp", -1.0).toFloat()
+                            val storage = payloadObj.optString("storage", "Unknown")
+                            _remoteTelemetry.value = RemoteTelemetry(
+                                batteryPercent = battery,
+                                batteryTempC = temp,
+                                storageFree = storage,
+                                roundTripTimeMs = payloadObj.optInt("rtt", 0)
+                            )
                         }
-                        val battery = payloadObj.optInt("battery", -1)
-                        val temp = payloadObj.optDouble("temp", -1.0).toFloat()
-                        val storage = payloadObj.optString("storage", "Unknown")
-                        _remoteTelemetry.value = RemoteTelemetry(
-                            batteryPercent = battery,
-                            batteryTempC = temp,
-                            storageFree = storage,
-                            roundTripTimeMs = payloadObj.optInt("rtt", 0)
-                        )
                     }
                     "DISPLAY_INFO" -> {
                         val envelope = JSONObject(msg.payload)
