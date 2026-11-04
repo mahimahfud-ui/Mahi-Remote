@@ -149,6 +149,13 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     init {
+        // Keep pairing UI state aligned with the actual MediaProjection/WebRTC state.
+        viewModelScope.launch {
+            ScreenCaptureService.streamState.collect { state ->
+                pairingManager.setScreenStreaming(state is ScreenStreamState.Active)
+            }
+        }
+
         // Wire ScreenCaptureService outgoing WebRTC signaling and display telemetry
         ScreenCaptureService.onWebRtcSignalGenerated = { type, payload ->
             val target = pairingManager.activeSession.value?.controllerId ?: pairingManager.pendingRequest.value?.controllerId
