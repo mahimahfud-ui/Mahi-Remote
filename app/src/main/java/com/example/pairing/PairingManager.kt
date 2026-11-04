@@ -78,9 +78,12 @@ class PairingManager(private val context: Context) {
         AuditLogger.log("PAIRING", "OPERATOR_REQUEST", "Connection request from $operatorName ($location)", AuditSeverity.SECURITY)
     }
 
-    fun approveRequest(request: OperatorRequest) {
+    fun approveRequest(
+        request: OperatorRequest,
+        sessionId: String = UUID.randomUUID().toString()
+    ) {
         val session = ActiveSession(
-            sessionId = UUID.randomUUID().toString(),
+            sessionId = sessionId,
             controllerId = request.controllerId,
             operatorName = request.operatorName,
             operatorLocation = request.operatorLocation,
