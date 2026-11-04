@@ -921,14 +921,17 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun approveIncomingRequest(req: OperatorRequest) {
         pairingManager.approveRequest(req)
-        // If request originated from an Android or Windows controller, send PAIR_ACCEPT back
+        pairingManager.setScreenStreaming(ScreenCaptureService.streamState.value is ScreenStreamState.Active)
+        // Only permissions explicitly requested and approved in this owner action
+        // are sent to the signaling server and become active session capabilities.
         if (req.controllerId.isNotBlank()) {
-            val sessionId = UUID.randomUUID().toString()
-            signalingClient.send(
-                "PAIR_ACCEPT",
-                """{"sessionId":"$sessionId","receiverName":"${identity.deviceName}","status":"APPROVED","fingerprint":"${identity.fingerprint}"}""",
-                req.controllerId
-            )
+            val payload = JSONObject()
+                .put("sessionId", UUID.randomUUID().toString())
+                .put("receiverName", identity.deviceName)
+                .put("status", "APPROVED")
+                .put("fingerprint", identity.fingerprint)
+                .put("approvedScopes", JSONArray(req.requestedScopes))
+            signalingClient.send("PAIR_ACCEPT", payload.toString(), req.controllerId)
         }
     }
 
