@@ -128,24 +128,22 @@ class ScreenCaptureService : Service() {
         try {
             when (type) {
                 "SDP_OFFER" -> {
-                    val json = org.json.JSONObject(payload)
-                    val sdp = json.optString("sdp", "")
-                    if (sdp.isNotEmpty()) {
-                        webRtcManager?.handleRemoteOfferAndCreateAnswer(sdp)
-                    }
+                    val envelope = org.json.JSONObject(payload)
+                    val signal = envelope.optJSONObject("payload") ?: envelope
+                    val sdp = signal.optString("sdp", envelope.optString("sdp", ""))
+                    if (sdp.isNotEmpty()) webRtcManager?.handleRemoteOfferAndCreateAnswer(sdp)
                 }
                 "SDP_ANSWER" -> {
-                    val json = org.json.JSONObject(payload)
-                    val sdp = json.optString("sdp", "")
-                    if (sdp.isNotEmpty()) {
-                        webRtcManager?.handleRemoteAnswer(sdp)
-                    }
+                    val envelope = org.json.JSONObject(payload)
+                    val signal = envelope.optJSONObject("payload") ?: envelope
+                    val sdp = signal.optString("sdp", envelope.optString("sdp", ""))
+                    if (sdp.isNotEmpty()) webRtcManager?.handleRemoteAnswer(sdp)
                 }
                 "ICE_CANDIDATE" -> {
-                    val json = org.json.JSONObject(payload)
-                    val candObj = if (json.has("candidate") && json.get("candidate") is org.json.JSONObject) {
-                        json.getJSONObject("candidate")
-                    } else json
+                    val envelope = org.json.JSONObject(payload)
+                    val signal = envelope.optJSONObject("payload") ?: envelope
+                    val candidateObject = signal.optJSONObject("candidate")
+                    val candObj = candidateObject ?: signal
                     val sdpMid = candObj.optString("sdpMid", "0")
                     val sdpMLineIndex = candObj.optInt("sdpMLineIndex", 0)
                     val candidate = candObj.optString("candidate", "")
