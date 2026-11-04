@@ -18,6 +18,9 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentLinkedQueue
+import org.json.JSONObject
+import org.json.JSONTokener
 
 enum class ConnectionStatus {
     DISCONNECTED,
@@ -44,6 +47,7 @@ class SignalingClient(
         .build()
 
     private var webSocket: WebSocket? = null
+    private val pendingPairingRegistrations = ConcurrentLinkedQueue<String>()
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var reconnectJob: Job? = null
 
@@ -96,8 +100,19 @@ class SignalingClient(
                 _connectionStatus.value = ConnectionStatus.AUTHENTICATED
                 AuditLogger.log("SIGNALING", "CONNECTED", "Authenticated with signaling server as ${deviceIdentity.deviceId}", AuditSeverity.SECURITY)
                 
-                // Send registration packet
-                send("REGISTER", """{"deviceId":"${deviceIdentity.deviceId}","model":"${deviceIdentity.deviceName}"}""")
+                // Register this socket, then flush the latest pairing code that may
+                // have been generated before the asynchronous WebSocket handshake completed.
+                send("REGISTER", JSONObject()
+                    .put("deviceId", deviceIdentity.deviceId)
+                    .put("model", deviceIdentity.deviceName)
+                    .toString())
+                while (true) {
+                    val queued = pendingPairingRegistrations.poll() ?: break
+                    if (!ws.send(queued)) {
+                        pendingPairingRegistrations.offer(queued)
+                        break
+                    }
+                }
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -119,18 +134,42 @@ class SignalingClient(
     }
 
     fun send(type: String, payload: String, recipient: String? = null): Boolean {
-        val json = """
-            {
-              "type": "$type",
-              "sender": "${deviceIdentity.deviceId}",
-              "recipient": ${if (recipient != null) "\"$recipient\"" else "null"},
-              "payload": ${if (payload.startsWith("{") || payload.startsWith("[")) payload else "\"$payload\""},
-              "timestamp": ${System.currentTimeMillis()}
+        val payloadValue: Any = try {
+            val trimmed = payload.trim()
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                JSONTokener(trimmed).nextValue()
+            } else {
+                payload
             }
-        """.trimIndent()
+        } catch (_: Exception) {
+            payload
+        }
 
-        val sent = webSocket?.send(json) ?: false
-        if (!sent && _connectionStatus.value == ConnectionStatus.AUTHENTICATED) {
+        val envelope = JSONObject()
+            .put("type", type)
+            .put("sender", deviceIdentity.deviceId)
+            .put("recipient", recipient ?: JSONObject.NULL)
+            .put("payload", payloadValue)
+            .put("timestamp", System.currentTimeMillis())
+        val json = envelope.toString()
+
+        val socket = webSocket
+        if (socket == null || _connectionStatus.value != ConnectionStatus.AUTHENTICATED) {
+            if (type == "REGISTER_PAIRING_CODE") {
+                // Only the latest code is relevant; never queue stale control commands.
+                pendingPairingRegistrations.clear()
+                pendingPairingRegistrations.offer(json)
+                return true
+            }
+            return false
+        }
+
+        val sent = socket.send(json)
+        if (!sent && type == "REGISTER_PAIRING_CODE") {
+            pendingPairingRegistrations.clear()
+            pendingPairingRegistrations.offer(json)
+        }
+        if (!sent) {
             AuditLogger.log("SIGNALING", "SEND_FAILED", "Failed to dispatch message type $type", AuditSeverity.WARNING)
         }
         return sent
