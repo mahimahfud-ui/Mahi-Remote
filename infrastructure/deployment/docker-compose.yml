@@ -21,6 +21,8 @@ services:
     depends_on:
       postgres-db:
         condition: service_healthy
+    volumes:
+      - mahi-backend-data:/app/data
     restart: unless-stopped
 
   postgres-db:
@@ -67,3 +69,4 @@ services:
 
 volumes:
   mahi-postgres-data:
+  mahi-backend-data:
