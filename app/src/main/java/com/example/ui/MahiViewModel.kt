@@ -330,7 +330,8 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     "DISPLAY_INFO" -> {
-                        val root = JSONObject(msg.payload)
+                        val envelope = JSONObject(msg.payload)
+                        val root = envelope.optJSONObject("payload") ?: envelope
                         val w = root.optInt("width", 1080)
                         val h = root.optInt("height", 2400)
                         val rot = root.optInt("rotation", 0)
@@ -409,10 +410,22 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun commandPayload(msg: SignalingMessage): JSONObject {
+        val envelope = JSONObject(msg.payload)
+        return envelope.optJSONObject("payload") ?: envelope
+    }
+
     private fun handleInputEvent(msg: SignalingMessage) {
-        val root = JSONObject(msg.payload)
-        val cmd = if (root.has("command")) root.getJSONObject("command") else root
-        val type = cmd.optString("type", "")
+        val root = commandPayload(msg)
+        val cmd = root.optJSONObject("command") ?: root
+        val requestedAction = cmd.optString("action", "").uppercase()
+        val type = when (requestedAction) {
+            "LONG_PRESS" -> "LONG_PRESS"
+            "DRAG" -> "DRAG"
+            "DOUBLE_TAP" -> "DOUBLE_TAP"
+            "TAP" -> "TAP"
+            else -> cmd.optString("type", "")
+        }
 
         val dm = getApplication<Application>().resources.displayMetrics
         val screenW = dm.widthPixels
@@ -472,7 +485,7 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleAppCommand(msg: SignalingMessage) {
-        val root = JSONObject(msg.payload)
+        val root = commandPayload(msg)
         val action = root.optString("action", "LIST")
         val pkg = root.optString("packageName", "")
 
@@ -497,7 +510,7 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleFileCommand(msg: SignalingMessage) {
-        val root = JSONObject(msg.payload)
+        val root = commandPayload(msg)
         val action = root.optString("action", "LIST")
         val path = root.optString("path", getApplication<Application>().filesDir.absolutePath)
 
