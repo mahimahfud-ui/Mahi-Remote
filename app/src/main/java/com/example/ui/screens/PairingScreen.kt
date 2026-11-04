@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,7 +38,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -183,20 +181,6 @@ fun PairingScreen(viewModel: MahiViewModel) {
                     }
                 }
 
-                // Operator simulation button
-                TextButton(
-                    onClick = { viewModel.simulateOperatorConnection() },
-                    modifier = Modifier.testTag("simulate_operator_request_btn")
-                ) {
-                    Icon(Icons.Default.SupportAgent, contentDescription = null, tint = MintAccent, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Simulate Operator Connection Request (Sylhet)",
-                        color = MintAccent,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
         }
 
