@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.remotescreen.ScreenCaptureService
 import com.example.remotescreen.ScreenStreamState
 import com.example.ui.MainTab
 import com.example.ui.MahiViewModel
@@ -77,6 +78,7 @@ fun DashboardScreen(
     val activeSession by viewModel.pairingManager.activeSession.collectAsState()
     val streamState by viewModel.screenStreamState.collectAsState()
     val pairingCode by viewModel.pairingManager.currentPairingCode.collectAsState()
+    val isScreenCaptureActive = ScreenCaptureService.isStreaming()
 
     val appRole by viewModel.appRole.collectAsState()
 
@@ -96,7 +98,7 @@ fun DashboardScreen(
         // Status Hero Banner
         HeroStatusBanner(
             activeSession = activeSession,
-            isStreaming = streamState is ScreenStreamState.Active,
+            isStreaming = isScreenCaptureActive,
             deviceId = viewModel.identity.deviceId,
             onEmergencyDisconnect = { viewModel.setShowDisconnectDialog(true) }
         )
@@ -107,10 +109,15 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ActionTile(
-                title = if (streamState is ScreenStreamState.Active) "Stop Share" else "Share Screen",
-                subtitle = if (streamState is ScreenStreamState.Active) "Live 30fps" else "MediaProjection",
+                title = if (isScreenCaptureActive) "Stop Share" else "Share Screen",
+                subtitle = when {
+                    streamState is ScreenStreamState.Connecting -> "Negotiating WebRTC…"
+                    streamState is ScreenStreamState.Active -> "Connected • stats unavailable"
+                    streamState is ScreenStreamState.Error && isScreenCaptureActive -> "Connection error • stop sharing"
+                    else -> "MediaProjection"
+                },
                 icon = Icons.Default.CastConnected,
-                tint = if (streamState is ScreenStreamState.Active) MintAccent else CyanAccent,
+                tint = if (isScreenCaptureActive) MintAccent else CyanAccent,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("quick_share_screen_btn"),
