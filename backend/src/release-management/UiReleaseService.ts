@@ -32,7 +32,7 @@ export class UiReleaseService {
   private static privateKeyFile = path.join(UiReleaseService.keysDir, 'ui-release-private-key.pem');
   private static publicKeyFile = path.join(UiReleaseService.keysDir, 'ui-release-public-key.pem');
 
-  private static adminKey = process.env.ADMIN_API_KEY || 'mahi-admin-secret-2026';
+  private static adminKey = process.env.ADMIN_API_KEY || '';
 
   private static privateKeyPem: string = '';
   private static publicKeyPem: string = '';
@@ -52,8 +52,11 @@ export class UiReleaseService {
   }
 
   public static validateAdminKey(key: string | undefined): boolean {
-    if (!key) return false;
-    return key === this.adminKey || key === `Bearer ${this.adminKey}`;
+    if (!key || !this.adminKey) return false;
+    const supplied = key.startsWith('Bearer ') ? key.slice(7) : key;
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(this.adminKey);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
   private static ensureStorage() {
@@ -80,32 +83,25 @@ export class UiReleaseService {
    */
   private static initEcdsaKeys() {
     try {
-      if (fs.existsSync(this.privateKeyFile) && fs.existsSync(this.publicKeyFile)) {
-        this.privateKeyPem = fs.readFileSync(this.privateKeyFile, 'utf-8');
-        this.publicKeyPem = fs.readFileSync(this.publicKeyFile, 'utf-8');
-      } else {
-        console.log('[UiReleaseService] Generating new ECDSA P-256 signing keypair...');
-        const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
-          namedCurve: 'prime256v1',
-          publicKeyEncoding: { type: 'spki', format: 'pem' },
-          privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-        });
-
-        this.privateKeyPem = privateKey;
-        this.publicKeyPem = publicKey;
-
-        fs.writeFileSync(this.privateKeyFile, privateKey, { mode: 0o600 });
-        fs.writeFileSync(this.publicKeyFile, publicKey, { mode: 0o644 });
+      const privateKey = (process.env.UI_RELEASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+      const configuredPublicKey = (process.env.UI_RELEASE_PUBLIC_KEY || '').replace(/\\n/g, '\n');
+      if (!privateKey || !configuredPublicKey) {
+        console.error('[UiReleaseService] UI release signing is disabled: configure UI_RELEASE_PRIVATE_KEY and UI_RELEASE_PUBLIC_KEY.');
+        return;
       }
-    } catch (e) {
-      console.warn('[UiReleaseService] Error initializing ECDSA keypair, generating fallback in memory:', e);
-      const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
-        namedCurve: 'prime256v1',
-        publicKeyEncoding: { type: 'spki', format: 'pem' },
-        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-      });
+
+      const derivedPublicKey = crypto.createPublicKey(privateKey)
+        .export({ type: 'spki', format: 'pem' }).toString().trim();
+      if (derivedPublicKey !== configuredPublicKey.trim()) {
+        throw new Error('UI release public/private key pair does not match');
+      }
+
       this.privateKeyPem = privateKey;
-      this.publicKeyPem = publicKey;
+      this.publicKeyPem = configuredPublicKey;
+    } catch (e) {
+      this.privateKeyPem = '';
+      this.publicKeyPem = '';
+      console.error('[UiReleaseService] UI release signing disabled:', e);
     }
   }
 
@@ -114,46 +110,33 @@ export class UiReleaseService {
   }
 
   private static loadReleases() {
-    if (fs.existsSync(this.storageFile)) {
-      try {
-        const raw = fs.readFileSync(this.storageFile, 'utf-8');
-        const data = JSON.parse(raw);
-        if (Array.isArray(data.releases)) {
-          for (const rel of data.releases) {
-            if (rel.signingAlgorithm !== 'SHA256withECDSA' || !rel.signature || rel.signature.length === 64) {
-              const canonical = `${rel.version}:${rel.buildId}:${rel.checksumSha256}`;
-              rel.signature = this.signPayload(canonical);
-              rel.signingAlgorithm = 'SHA256withECDSA';
-            }
-            this.releases.set(rel.version, rel);
-          }
-        }
-        if (data.activeVersion && this.releases.has(data.activeVersion)) {
-          this.activeVersion = data.activeVersion;
-        }
-      } catch (e) {
-        console.warn('[UiReleaseService] Failed to load releases from disk, using defaults:', e);
-      }
-    }
+    if (!this.publicKeyPem) return;
+    if (!fs.existsSync(this.storageFile)) return;
 
-    // Seed v1.0.0 if empty
-    if (this.releases.size === 0) {
-      const initialManifest = this.createManifestObject(
-        '1.0.0',
-        'MAHI-BUILD-OBSIDIAN-100',
-        'Baseline Obsidian Telemetry Live Presentation layer with adaptive diagnostics, pairing, file transfer, and app manager.',
-        ['Dashboard', 'Pairing', 'Diagnostics', 'Files', 'Apps', 'Settings'],
-        [
-          { path: 'live/index.html', sha256: this.computeSha256('Mahi Initial UI Bundle Index'), size: 4096 },
-          { path: 'live/live.css', sha256: this.computeSha256('Mahi Initial CSS Bundle'), size: 8192 },
-          { path: 'live/live.js', sha256: this.computeSha256('Mahi Initial JS Bundle'), size: 16384 },
-        ],
-        null,
-        false
-      );
-      this.releases.set('1.0.0', initialManifest);
-      this.activeVersion = '1.0.0';
-      this.persist();
+    try {
+      const raw = fs.readFileSync(this.storageFile, 'utf-8');
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data.releases)) return;
+
+      for (const rel of data.releases) {
+        if (!rel || rel.signingAlgorithm !== 'SHA256withECDSA' ||
+            typeof rel.version !== 'string' || typeof rel.buildId !== 'string' ||
+            typeof rel.checksumSha256 !== 'string' || typeof rel.signature !== 'string') {
+          continue;
+        }
+        const canonical = `${rel.version}:${rel.buildId}:${rel.checksumSha256}`;
+        if (this.verifySignature(canonical, rel.signature)) {
+          this.releases.set(rel.version, rel);
+        }
+      }
+
+      if (data.activeVersion && this.releases.has(data.activeVersion)) {
+        this.activeVersion = data.activeVersion;
+      } else {
+        this.activeVersion = Array.from(this.releases.keys()).at(-1) || '';
+      }
+    } catch (e) {
+      console.warn('[UiReleaseService] Failed to load verified releases:', e);
     }
   }
 
@@ -173,14 +156,17 @@ export class UiReleaseService {
   }
 
   public static getLatestRelease(): UiReleaseManifest | null {
+    if (!this.privateKeyPem || !this.publicKeyPem) return null;
     return this.releases.get(this.activeVersion) || null;
   }
 
   public static getAllReleases(): UiReleaseManifest[] {
+    if (!this.publicKeyPem) return [];
     return Array.from(this.releases.values()).reverse();
   }
 
   public static getReleaseByVersion(version: string): UiReleaseManifest | null {
+    if (!this.publicKeyPem) return null;
     return this.releases.get(version) || null;
   }
 
@@ -257,28 +243,33 @@ export class UiReleaseService {
   }): { success: boolean; release?: UiReleaseManifest; error?: string } {
     const { version, buildId, releaseNotes, componentsUpdated = [], assets = [], isMandatory = false } = params;
 
+    if (!this.privateKeyPem || !this.publicKeyPem) {
+      return { success: false, error: 'UI release publishing is disabled until a rotated ECDSA key pair is configured' };
+    }
     if (!version || !buildId || !releaseNotes) {
       return { success: false, error: 'Version, buildId, and releaseNotes are required' };
     }
-
-    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    if (!/^\\d+\\.\\d+\\.\\d+$/.test(version)) {
       return { success: false, error: 'Version must be semantic version format (e.g. 1.1.0)' };
     }
 
-    const previousVersion = this.activeVersion;
+    const requiredPaths = ['live/index.html', 'live/live.css', 'live/live.js'];
+    const assetPaths = assets.map(asset => asset.path).sort();
+    if (assets.length !== requiredPaths.length ||
+        requiredPaths.slice().sort().some((path, index) => path !== assetPaths[index]) ||
+        assets.some(asset => !/^[a-f0-9]{64}$/i.test(asset.sha256) ||
+          !Number.isSafeInteger(asset.size) || asset.size <= 0)) {
+      return { success: false, error: 'A release must include valid SHA-256 and size metadata for index.html, live.css, and live.js' };
+    }
 
-    const defaultAssets: UiAssetEntry[] = assets.length > 0 ? assets : [
-      { path: 'live/index.html', sha256: this.computeSha256(`index-${version}-${buildId}`), size: 5120 },
-      { path: 'live/live.css', sha256: this.computeSha256(`css-${version}-${buildId}`), size: 10240 },
-      { path: 'live/live.js', sha256: this.computeSha256(`js-${version}-${buildId}`), size: 20480 },
-    ];
+    const previousVersion = this.activeVersion;
 
     const newManifest = this.createManifestObject(
       version,
       buildId,
       releaseNotes,
       componentsUpdated.length > 0 ? componentsUpdated : ['Dashboard', 'Controls', 'Diagnostics'],
-      defaultAssets,
+      assets,
       previousVersion,
       isMandatory
     );
@@ -298,6 +289,9 @@ export class UiReleaseService {
   }
 
   public static rollback(targetVersion?: string): { success: boolean; activeRelease?: UiReleaseManifest; error?: string } {
+    if (!this.privateKeyPem || !this.publicKeyPem) {
+      return { success: false, error: 'UI release rollback is disabled until a rotated ECDSA key pair is configured' };
+    }
     let destVersion = targetVersion;
     if (!destVersion) {
       const current = this.releases.get(this.activeVersion);
