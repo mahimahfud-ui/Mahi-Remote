@@ -248,8 +248,11 @@ export class SignalingHub {
         this.pendingDeviceAuth.set(ws, pending);
         ws.send(JSON.stringify({ type: 'AUTH_CHALLENGE', nonce, timestamp: Date.now() }));
       } else if (operatorFingerprint) {
-        const clientId = `operator_${operatorFingerprint.slice(0, 48)}`;
-        client = this.attachClient(ws, clientId, 'WINDOWS', operatorFingerprint.slice(0, 128), 'SERVER_CONNECTED');
+        // WPF currently sends a self-asserted fingerprint header but has no
+        // challenge-response proof. Reject it rather than treating the header
+        // as an authenticated identity or allowing impersonation.
+        ws.close(1008, 'Windows controller identity authentication is not implemented yet');
+        return;
       } else {
         // Browser WebSocket APIs cannot set arbitrary headers. This ephemeral
         // controller can only receive access after owner-approved pairing.
