@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Mahi Remote</string>
+    <string name="accessibility_service_name">Mahi Remote Input Service</string>
+    <string name="accessibility_service_description">Enables authorized remote operator interaction including taps, gestures, navigation and text entry for Mahi Remote Control support sessions. All operations require explicit session approval.</string>
+    <string name="screen_service_notification_title">Mahi Remote Screen Active</string>
+    <string name="screen_service_notification_text">Streaming screen to authorized Windows operator</string>
+    <string name="action_stop_sharing">Stop Sharing</string>
+    <string name="emergency_disconnect">Emergency Disconnect</string>
+</resources>

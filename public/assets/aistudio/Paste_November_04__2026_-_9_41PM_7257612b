@@ -1,0 +1,973 @@
+# MAHI REMOTE CONTROL — MASTER ENGINEERING IMPLEMENTATION
+## Dual-Mode Android Remote Control + Full Display Mirroring + Native Navigation Preservation
+
+### ROLE
+
+Act as the Principal Android Architect, Senior Kotlin Engineer, WebRTC Engineer, Full-Stack Backend Engineer, Security Engineer, and Cross-Platform Product Engineer.
+
+You are responsible for upgrading the EXISTING Mahi Remote Control application into a genuinely functional dual-mode remote Android control platform.
+
+You must inspect the existing project, understand its architecture, and implement the required improvements directly within the existing application.
+
+Do not generate a replacement demo application.
+
+Do not build only a visual prototype.
+
+Do not claim functionality is implemented merely because a screen or button exists.
+
+The primary goal is actual Android device-to-device control and actual browser-to-Android control.
+
+---
+
+# 1. PROJECT CONTEXT
+
+Product: Mahi Remote Control
+
+GitHub repository:
+https://github.com/mahimahfud-ui/Mahi-Remote-Control
+
+Google AI Studio project:
+https://ai.studio/apps/78a62340-cc3b-4bcb-8674-7f08cf3175be
+
+Design system: Obsidian Telemetry.
+
+Existing project includes:
+
+- Native Android Kotlin application.
+- Jetpack Compose interface.
+- Android dual-role architecture.
+- Browser-based remote control console.
+- Node.js / Express backend.
+- WebSocket signaling.
+- WebRTC-related browser implementation.
+- Android AccessibilityService.
+- MediaProjection service.
+- Windows WPF controller.
+- Pairing and security modules.
+- File transfer, diagnostics, and application management.
+- PostgreSQL schema and deployment configuration.
+
+Important source files include:
+
+Android:
+- MainActivity.kt
+- PairingScreen.kt
+- ControllerDashboardScreen.kt
+- ControllerViewerScreen.kt
+- MahiViewModel.kt
+- ScreenCaptureService.kt
+- MahiAccessibilityService.kt
+- SignalingClient.kt
+- PairingManager.kt
+- DeviceIdentity.kt
+
+Backend:
+- backend/src/index.ts
+- backend/src/signaling/SignalingHub.ts
+- backend/src/authentication/AuthService.ts
+- backend/src/device-management/DeviceService.ts
+- backend/src/api/routes.ts
+
+Browser:
+- backend/public/index.html
+- backend/public/app.js
+- backend/public/styles.css
+
+Windows:
+- windows-controller/MahiRemote.App/MainWindow.xaml
+- windows-controller/MahiRemote.App/MainWindow.xaml.cs
+- windows-controller/MahiRemote.WebRTC/
+
+Treat the actual project source as authoritative.
+
+First verify that the current Google AI Studio workspace matches the supplied project structure. Report any differences. Do not invent source files or integrations that are not present.
+
+---
+
+# 2. THE TWO REQUIRED PRIMARY OPERATING MODES
+
+This application MUST have two fully functional control options.
+
+## MODE A — ANDROID TO ANDROID
+
+Phone A = Controller.
+
+Phone B = Receiver.
+
+Both phones install the same unified Mahi Remote Android application.
+
+Phone A must be able to:
+
+1. Generate or enter a receiver's six-digit pairing PIN.
+2. Scan a receiver QR code.
+3. Discover previously paired devices.
+4. Request remote access.
+5. Display the receiver's real-time screen.
+6. Send taps and gestures.
+7. Scroll, drag, and perform long presses.
+8. Enter text into supported remote fields.
+9. Perform supported Android system navigation.
+10. Access authorized diagnostics and other existing remote features.
+11. Disconnect the session immediately.
+
+Phone B must be able to:
+
+1. Generate a secure, expiring pairing code.
+2. Display a QR code.
+3. Receive incoming controller requests.
+4. Show a proper device-owner approval screen.
+5. Display controller identity and requested permissions.
+6. Obtain MediaProjection consent.
+7. Enable screen capture.
+8. Establish the WebRTC session.
+9. Receive remote input commands.
+10. Display a persistent sharing notification.
+11. Terminate sharing immediately.
+
+The receiver must always retain control over authorization and session termination.
+
+## MODE B — BROWSER TO ANDROID
+
+A user opens the Mahi Remote web console using:
+
+- Google Chrome.
+- Microsoft Edge.
+- Firefox.
+- Brave.
+- Other modern WebRTC-compatible browsers.
+
+The browser becomes the controller.
+
+The Android phone remains the receiver.
+
+Required functionality:
+
+1. Enter the six-digit receiver pairing PIN.
+2. Scan or use supported QR pairing workflows where practical.
+3. Send an actual pairing request through the backend.
+4. Wait for receiver authorization.
+5. Establish WebRTC negotiation.
+6. Receive the actual Android video stream.
+7. Show the complete receiver display.
+8. Support browser mouse/touch interaction.
+9. Support keyboard text input where possible.
+10. Support Back, Home, Recents, and other supported system actions.
+11. Support scrolling, swiping, long presses, and dragging.
+12. Provide a genuine fullscreen viewing experience.
+13. Show real connection status and diagnostics.
+14. Support immediate emergency disconnection.
+
+Browser-to-Android and Android-to-Android must share the same receiver implementation and session protocol.
+
+Do not create two separate, incompatible Android screen-capture architectures.
+
+---
+
+# 3. MOST IMPORTANT REQUIREMENT — SHOW THE ORIGINAL ANDROID SCREEN
+
+This requirement has the highest UI and functional priority.
+
+I do not want a simulated phone interface.
+
+I do not want a recreated Android status bar.
+
+I do not want a fake navigation bar.
+
+I do not want a separate Back / Home / Recents navigation strip below the remote display.
+
+I want the ACTUAL RECEIVER PHONE DISPLAY to appear inside the controller interface.
+
+This means:
+
+- Actual receiver wallpaper.
+- Actual receiver application.
+- Actual receiver status bar.
+- Actual receiver notifications, subject to user privacy and Android restrictions.
+- Actual receiver battery/status indicators.
+- Actual receiver Android navigation bar.
+- Actual gesture navigation handle when that navigation mode is enabled.
+- Actual three-button navigation bar when that mode is enabled.
+- Actual receiver screen orientation.
+- Actual receiver screen dimensions and aspect ratio.
+
+The screen must be transmitted as real captured display frames.
+
+Do not draw Android UI elements manually to imitate the original screen.
+
+The original system UI must be part of the MediaProjection capture and WebRTC video stream.
+
+### Android full-display capture
+
+Inspect the current MediaProjection implementation.
+
+For modern Android:
+
+- Use the MediaProjection API correctly.
+- On Android versions supporting MediaProjectionConfig, request the default full-device display configuration when full-device mirroring is required.
+- Do not accidentally use app-only sharing when the requirement is complete device mirroring.
+- Explain the full-screen capture permission to the receiver owner.
+- Obtain official OS consent for every new projection session.
+- Never bypass MediaProjection permission.
+- Handle projection revocation.
+- Handle device rotation.
+- Handle display resize.
+- Handle changes in resolution and aspect ratio.
+- Release VirtualDisplay, Surface, encoder, and projection resources correctly.
+
+Android 14+ MediaProjection restrictions must be respected.
+
+A MediaProjection authorization token must not be reused to create multiple VirtualDisplays.
+
+Register MediaProjection callbacks and implement correct teardown and resize handling.
+
+Use official Android APIs compatible with the project's target SDK.
+
+---
+
+# 4. REMOVE THE DUPLICATE NAVIGATION UI
+
+The Controller Viewer currently contains separate Android navigation controls.
+
+The Browser fallback canvas also draws a fake navigation bar.
+
+These are contrary to the desired experience.
+
+Implement the following:
+
+- Remove the always-visible separate remote navigation bar.
+- Remove the manually drawn simulated receiver status bar.
+- Remove the manually drawn simulated receiver navigation bar.
+- Do not recreate the receiver's original UI on the controller.
+- Do not draw artificial time, battery, network indicators, or system icons.
+- Do not show another navigation strip below the remote screen.
+
+The receiver's real navigation bar must appear naturally inside its streamed screen.
+
+### Navigation interaction
+
+The displayed native navigation area must remain useful for remote interaction.
+
+Support both:
+
+1. Android gesture navigation.
+2. Traditional three-button navigation.
+
+Remote input must be mapped to the receiver's actual display.
+
+Use AccessibilityService gestures where permitted.
+
+Use Android global actions for supported system navigation such as:
+
+- BACK
+- HOME
+- RECENTS
+- NOTIFICATIONS
+- QUICK_SETTINGS
+
+Do not rely on a duplicated visual navigation toolbar to provide these features.
+
+When a particular navigation mode does not accept normal injected touch events, implement an appropriate receiver-side semantic navigation action.
+
+Test both three-button and gesture navigation on physical devices.
+
+---
+
+# 5. TRUE FULLSCREEN REMOTE VIEWER
+
+The remote screen should occupy the maximum available display area.
+
+## Android Controller
+
+When Phone A opens an active remote session:
+
+- Display the actual receiver video.
+- Open an immersive fullscreen viewer.
+- Hide unnecessary controller-side application chrome.
+- Do not waste screen space on large headers or separate navigation controls.
+- Allow controls to appear only when explicitly requested or temporarily when needed.
+- Preserve a quick emergency disconnect action.
+- Preserve an obvious exit/fullscreen toggle.
+- Preserve the existing Obsidian Telemetry visual style outside the remote viewport.
+
+The local controller's system UI and the receiver's streamed system UI must not be confused.
+
+The controller's own system bars can be hidden in fullscreen mode while the receiver's original system bars remain visible inside the remote video.
+
+## Browser Controller
+
+Implement a genuine fullscreen button using the browser Fullscreen API.
+
+Requirements:
+
+- Full available viewport for the streamed phone.
+- Correct video aspect ratio.
+- No fake phone content.
+- No unnecessary phone bezel.
+- No duplicated receiver navigation controls.
+- No clipped screen edges.
+- Correct browser Escape behavior.
+- Responsive desktop and mobile layouts.
+- Minimal floating controls that do not obscure the remote device.
+
+Use the actual video stream, not a placeholder Canvas rendering.
+
+---
+
+# 6. REAL SCREEN CAPTURE AND WEBRTC PIPELINE
+
+This is a critical engineering requirement.
+
+The existing ScreenCaptureService must be inspected and corrected.
+
+The current source includes MediaProjection initialization but also uses simulated stream telemetry.
+
+Replace the simulated implementation with a genuine streaming pipeline.
+
+Required pipeline:
+
+Android MediaProjection
+    ↓
+Full-device VirtualDisplay
+    ↓
+Capture Surface / WebRTC screen capturer
+    ↓
+Hardware-accelerated video encoding
+    ↓
+WebRTC VideoTrack
+    ↓
+PeerConnection
+    ↓
+STUN / TURN as required
+    ↓
+Remote Controller Video Renderer
+
+Use a maintained Android WebRTC implementation compatible with the project.
+
+Select a reliable, pinned dependency version.
+
+Avoid adding multiple competing WebRTC implementations.
+
+Implement:
+
+- PeerConnectionFactory initialization.
+- EGL context and rendering lifecycle.
+- Screen capture integration.
+- VideoSource and VideoTrack.
+- H.264 where supported and negotiated.
+- SDP offer/answer.
+- ICE candidate exchange.
+- ICE connection state observation.
+- TURN fallback.
+- Video track delivery.
+- Connection teardown.
+- Reconnection policy.
+- Camera/audio only when explicitly required and authorized.
+
+Do not report a stream as active just because MediaProjection permission was granted.
+
+A session is LIVE only when a real video track and connection are established.
+
+---
+
+# 7. ANDROID CONTROLLER VIDEO RENDERING
+
+The Android-to-Android controller must use an actual WebRTC video renderer.
+
+Implement the appropriate Android WebRTC rendering component, such as SurfaceViewRenderer, with correct lifecycle management.
+
+Requirements:
+
+- Show the remote screen continuously.
+- Preserve the complete captured display.
+- Support portrait and landscape.
+- Support actual device resolution changes.
+- Handle frame rendering and surface lifecycle.
+- Handle screen rotation.
+- Avoid unnecessary recomposition.
+- Avoid memory leaks.
+- Correctly dispose the renderer when disconnected.
+
+A locally drawn status bar or placeholder is not an acceptable substitute for received video frames.
+
+---
+
+# 8. BROWSER WEBRTC IMPLEMENTATION
+
+The browser must participate in the same WebRTC session protocol.
+
+Inspect the existing app.js.
+
+Complete the actual signaling flow.
+
+Required browser message handling:
+
+- AUTHENTICATION
+- PAIRING_RESULT
+- PAIR_ACCEPT
+- PAIR_REJECT
+- SDP_OFFER
+- SDP_ANSWER
+- ICE_CANDIDATE
+- SESSION_STARTED
+- SESSION_TERMINATED
+- CONNECTION_STATE
+- ERROR
+- RECONNECT
+
+Implement genuine offer/answer negotiation.
+
+The browser must correctly:
+
+1. Initialize RTCPeerConnection.
+2. Create or receive the appropriate SDP offer.
+3. Exchange SDP through the existing signaling backend.
+4. Add remote ICE candidates.
+5. Handle ICE gathering.
+6. Receive remote video tracks.
+7. Render the video in the actual video element.
+8. Establish the remote input data channel.
+9. Handle data channel state.
+10. Tear down the peer connection correctly.
+
+Do not initialize a PeerConnection without completing negotiation.
+
+Do not mark the browser connected before the actual connection is established.
+
+Do not fabricate a successful SDP/ICE state.
+
+---
+
+# 9. UNIFIED REMOTE INPUT ENGINE
+
+The same input protocol must work for Android and browser controllers.
+
+Support:
+
+| Input | Expected behavior |
+|---|---|
+| Single tap | Real receiver touch |
+| Double tap | Actual double tap |
+| Long press | Actual long press |
+| Swipe | Continuous remote swipe |
+| Drag | Continuous drag gesture |
+| Pinch | Multi-touch where AccessibilityService permits |
+| Scroll | Remote scrolling |
+| Text input | Actual focused text field when supported |
+| Back | Receiver system Back action |
+| Home | Receiver system Home action |
+| Recents | Receiver Recents action |
+| Notifications | Open receiver notification shade |
+| Quick settings | Open receiver Quick Settings |
+| Volume | Adjust receiver volume |
+
+### Critical coordinate correction
+
+Remove fixed 1080x1920 assumptions.
+
+The existing ViewModel and browser coordinate normalization must be redesigned.
+
+Use receiver-reported display metadata:
+
+- Actual logical width.
+- Actual logical height.
+- Current orientation.
+- Display rotation.
+- Capture resolution.
+- Pixel density where relevant.
+- Captured display bounds.
+
+Map controller pointer coordinates to the actual video content rectangle.
+
+Account for:
+
+- Letterboxing.
+- Object-fit behavior.
+- Video scaling.
+- Center offsets.
+- Aspect ratio.
+- Device rotation.
+- Landscape mode.
+- Full-screen insets.
+
+Use normalized coordinates or an explicitly versioned display coordinate contract.
+
+Every input event must be validated by the receiver.
+
+Do not send arbitrary unbounded coordinates.
+
+---
+
+# 10. SHARED CROSS-PLATFORM TRANSPORT
+
+Use one consistent session architecture.
+
+Preferred separation:
+
+WebSocket:
+- Authentication.
+- Device registration.
+- Pairing.
+- Approval.
+- SDP signaling.
+- ICE signaling.
+- Session lifecycle and recovery.
+
+WebRTC:
+- Actual video stream.
+- Remote input DataChannel.
+- Control acknowledgements.
+- Real-time control events.
+
+The Android Controller and Browser Controller must use compatible messages.
+
+Define a shared versioned protocol.
+
+Every remote command must contain:
+
+- Session ID.
+- Command ID.
+- Message sequence.
+- Command type.
+- Payload.
+- Timestamp.
+- Authorization context.
+
+Use appropriate reliable, ordered delivery for critical control actions.
+
+Handle duplicate, expired, unauthorized, and out-of-sequence commands safely.
+
+Keep signaling and remote command responsibilities consistent.
+
+---
+
+# 11. PAIRING AND SECURITY REWORK
+
+Security is a release blocker.
+
+The current source includes simulated identity material and an insufficiently protected WebSocket signaling implementation.
+
+Correct it.
+
+Requirements:
+
+- Genuine device key generation.
+- Private key protected using Android Keystore where supported.
+- Real public-key fingerprint.
+- Real cryptographic signature verification.
+- Authenticated signaling sessions.
+- Secure short-lived session tokens.
+- Token expiry and revocation.
+- Single-use pairing PIN.
+- PIN expiration.
+- PIN brute-force protection.
+- Receiver owner approval.
+- Per-session scope authorization.
+- Controller identity verification.
+- Replay protection.
+- Secure TURN credential issuance.
+- Secure WebSocket transport in production.
+- Session cleanup.
+
+Browser authentication must use an appropriate short-lived authentication exchange because browser WebSocket connections cannot freely set arbitrary custom HTTP headers.
+
+Do not trust claimed identity values supplied only in client headers.
+
+Do not accept INPUT_EVENT, FILE_COMMAND, APP_COMMAND, or DIAGNOSTICS_RUN unless an authenticated and approved session authorizes that action.
+
+Do not broadcast sensitive device commands to every connected receiver.
+
+Use explicit recipient and active-session ownership checks.
+
+Remove the hardcoded fallback JWT secret.
+
+Never expose TURN shared secrets in public JavaScript.
+
+Keep all remote interactions visible to the receiving owner.
+
+---
+
+# 12. FULL CONTROL — ANDROID PLATFORM COMPATIBILITY
+
+The intended experience is full practical remote interaction within legitimate Android platform capabilities.
+
+Keep the application functional on normal non-rooted Android phones wherever the required official permissions are available.
+
+AccessibilityService must be explicitly enabled by the device owner.
+
+MediaProjection must be explicitly authorized.
+
+Do not bypass Android security dialogs.
+
+Do not attempt to bypass:
+
+- FLAG_SECURE protections.
+- Secure lock-screen credentials.
+- Runtime permission confirmation requirements.
+- Protected banking and password screens.
+- System confirmation dialogs protected by Android.
+- Android's Accessibility activation requirements.
+
+Where the Android OS blocks an operation, show an accurate explanation rather than pretending that it succeeded.
+
+Optional root/Magisk functionality must remain optional and must never become a prerequisite for ordinary remote interaction.
+
+---
+
+# 13. LIVE TELEMETRY
+
+Completely eliminate fake connection telemetry.
+
+Replace generated sample values with actual measurements.
+
+Use actual WebRTC getStats() and Android/network measurements as appropriate.
+
+Measure:
+
+- Received FPS.
+- Sent FPS.
+- RTT.
+- Available bitrate.
+- Actual bitrate.
+- Frames dropped.
+- Packet loss.
+- Jitter.
+- ICE candidate type.
+- Direct P2P versus TURN relay.
+- Video resolution.
+- Connection state.
+- Reconnection attempts.
+
+The UI must distinguish:
+
+- Connecting.
+- Pairing pending.
+- Awaiting approval.
+- Permission required.
+- Negotiating.
+- Connected.
+- Streaming.
+- Recovering.
+- Disconnected.
+- Failed.
+
+Never display sample telemetry as real device information.
+
+Remove static sample device records from production behavior.
+
+Any simulation button must be explicitly separated into a developer/testing mode.
+
+---
+
+# 14. PRESERVE THE EXISTING DESIGN SYSTEM
+
+Do not redesign the application.
+
+Preserve:
+
+- Obsidian Telemetry.
+- Existing dark technical visual language.
+- Existing Android Compose components where suitable.
+- Existing desktop layout.
+- Existing browser console identity.
+- Existing pairing workflow.
+- Existing device management tools.
+- Existing file management features.
+- Existing diagnostics.
+- Existing audit log.
+- Existing emergency disconnect behavior.
+
+Make targeted improvements.
+
+Remove only components that conflict with the new requirements, such as the duplicate remote navigation strip and fabricated phone-display placeholders.
+
+Preserve existing DOM hooks unless a migration is necessary.
+
+If an existing feature already works, do not rewrite it unnecessarily.
+
+---
+
+# 15. FAILURE AND RECOVERY
+
+Validate these cases on the actual implementation:
+
+1. Invalid PIN.
+2. Expired PIN.
+3. PIN replay.
+4. Receiver offline.
+5. User rejects pairing.
+6. MediaProjection permission denied.
+7. MediaProjection revoked.
+8. WebRTC negotiation timeout.
+9. ICE failure.
+10. TURN fallback.
+11. Network interruption.
+12. Network recovery.
+13. Controller disconnect.
+14. Receiver stops sharing.
+15. Emergency disconnect.
+16. Controller changes orientation.
+17. Receiver changes orientation.
+18. Receiver display resolution changes.
+19. Accessibility service disabled.
+20. Browser tab closes unexpectedly.
+
+Every case must result in a clear, correct state transition and safe resource cleanup.
+
+Do not fabricate reconnection success.
+
+The receiver must remain able to stop sharing immediately.
+
+---
+
+# 16. IMPLEMENTATION PHASES
+
+Implement the work in this order.
+
+### Phase 0 — Baseline Inspection
+
+Inspect every existing source component.
+
+Produce a verified inventory.
+
+Identify mock, simulated, incomplete, and real implementations.
+
+Check current project build and test status.
+
+Do not assume documentation claims match the code.
+
+### Phase 1 — Security and Session Architecture
+
+Fix authentication, session validation, device identity, pairing authorization, command validation, and secure signaling.
+
+This phase must be completed before unrestricted remote commands are enabled.
+
+### Phase 2 — Real Android WebRTC Sender
+
+Implement actual MediaProjection to WebRTC video capture.
+
+Make sure full-device capture includes the original system UI where the Android OS permits full-display projection.
+
+### Phase 3 — Android-to-Android Controller
+
+Implement the genuine Android WebRTC video receiver and DataChannel input controller.
+
+Verify Phone A to Phone B.
+
+### Phase 4 — Browser-to-Android Controller
+
+Complete browser SDP/ICE negotiation, actual remote video display, real pointer input, keyboard input, and fullscreen support.
+
+Verify Chrome and Edge.
+
+### Phase 5 — Original Navigation and Fullscreen UX
+
+Remove duplicated/fake navigation UI.
+
+Preserve the original receiver navigation bar inside the real video stream.
+
+Implement accurate coordinate mapping and rotation handling.
+
+### Phase 6 — Recovery and Telemetry
+
+Implement genuine WebRTC diagnostics, reconnection handling, session-state synchronization, and proper emergency teardown.
+
+### Phase 7 — Verification
+
+Run available:
+
+- Android unit tests.
+- Robolectric tests.
+- Backend integration tests.
+- TypeScript build.
+- Browser tests.
+- Android build.
+- Physical-device test checklist.
+
+Do not claim physical-device success without physical-device evidence.
+
+---
+
+# 17. REQUIRED ACCEPTANCE TESTS
+
+The project is not complete until these core scenarios work.
+
+### Test A — Android to Android
+
+Phone A and Phone B install the same APK.
+
+Phone B generates a code.
+
+Phone A enters the code.
+
+Phone B approves.
+
+Phone B grants MediaProjection.
+
+Phone A receives the actual phone display.
+
+The entire receiver display is visible, including its original status bar and native navigation bar.
+
+Phone A taps an app.
+
+Phone B responds.
+
+Phone A scrolls.
+
+Phone B responds.
+
+Phone A performs Back and Home.
+
+Phone B performs the expected navigation actions.
+
+Phone B rotates to landscape.
+
+Phone A displays the correctly rotated receiver screen.
+
+Phone B can stop the session.
+
+### Test B — Browser to Android
+
+Open the browser console on a desktop.
+
+Enter the real receiver pairing PIN.
+
+Approve on the Android phone.
+
+Grant MediaProjection.
+
+Browser receives the actual display.
+
+Enter fullscreen.
+
+Verify the receiver's original status bar and navigation bar are visible.
+
+Click an application.
+
+The application opens on the receiver.
+
+Perform a swipe.
+
+The receiver responds.
+
+Enter text in a remote text field.
+
+Text appears on the receiver.
+
+Use Android navigation.
+
+Verify actual behavior.
+
+Disconnect from the browser.
+
+Receiver stops sharing.
+
+### Test C — Fullscreen and Original Navigation
+
+Test all of the following:
+
+- Android gesture navigation.
+- Android three-button navigation.
+- Portrait.
+- Landscape.
+- Different display resolutions.
+- Different Android versions.
+- Full-screen MediaProjection.
+- Screen rotation during streaming.
+- Original navigation bar visibility.
+- Navigation interaction within the remote stream.
+
+There must be no artificial second navigation bar.
+
+### Test D — Network Reliability
+
+Test:
+
+- Both phones on Wi-Fi.
+- Both phones on separate Wi-Fi networks.
+- Wi-Fi to mobile data.
+- Different cellular providers.
+- Direct ICE connection.
+- TURN relay.
+- Temporary network loss.
+- Successful recovery.
+- Emergency disconnect.
+
+---
+
+# 18. PROJECT COMPLETION REPORT
+
+After implementation, provide:
+
+1. Original architecture audit.
+2. Current implemented feature matrix.
+3. Files changed.
+4. Actual Android WebRTC implementation details.
+5. Browser WebRTC implementation details.
+6. Shared protocol specification.
+7. Security improvements.
+8. Fullscreen and original navigation implementation.
+9. Coordinate mapping explanation.
+10. Tests executed and their actual results.
+11. Remaining limitations.
+12. Actual physical-device verification requirements.
+
+For every feature classify it as:
+
+- IMPLEMENTED AND TESTED.
+- IMPLEMENTED, PHYSICAL TEST REQUIRED.
+- PARTIALLY IMPLEMENTED.
+- PROTOTYPE ONLY.
+- BLOCKED BY ANDROID PLATFORM.
+- NOT IMPLEMENTED.
+
+Never mark a simulated interaction as a real working feature.
+
+---
+
+# 19. STRICT OPERATIONAL RESTRICTIONS
+
+Do not:
+
+- Publish the Google AI Studio application.
+- Export or download the application.
+- Deploy the backend.
+- Change production hosting.
+- Overwrite the GitHub repository.
+- Delete existing modules.
+- Replace the existing UI with an unrelated redesign.
+- Expose private API keys or TURN secrets.
+- Add hidden remote-access functionality.
+- Bypass Android permissions.
+- Introduce sample success states.
+- Claim an untested device connection is working.
+
+Perform the engineering changes inside the existing project workspace only.
+
+Preserve the project and its existing functionality.
+
+---
+
+# 20. START IMPLEMENTATION NOW
+
+Start by reviewing the actual current project source.
+
+Pay special attention to the missing real MediaProjection-to-WebRTC pipeline, simulated ControllerViewerScreen, incomplete browser signaling, fixed 1080x1920 coordinate assumptions, authentication gaps, and duplicated navigation controls.
+
+Then implement the fixes in the specified order.
+
+Do not stop after presenting a list of recommendations.
+
+Do not merely provide code snippets or instructions for me to implement manually.
+
+Make the actual source-code changes wherever the existing workspace supports them.
+
+If a task requires physical hardware, external infrastructure, or unavailable credentials, complete everything that can be completed safely and provide an exact remaining verification checklist.
+
+The final product must have two working primary controller options:
+
+1. Android Phone → Android Phone.
+2. Web Browser → Android Phone.
+
+Both must display the real, entire receiver screen, including its own native Android system navigation and status bars, and provide the maximum legitimate remote interaction permitted by Android.
+
+**FINAL PRODUCT PRINCIPLE: One receiver. Two controller options. One shared secure session architecture. One genuine full-device remote viewing experience. No fake screen. No duplicate navigation bar. No simulated control success.**

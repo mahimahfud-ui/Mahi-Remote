@@ -1,0 +1,8 @@
+{
+  "name": "Remix Mahi Remote",
+  "description": "Production remote Android device support and control platform with screen streaming, diagnostics, file transfer, and accessibility interaction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

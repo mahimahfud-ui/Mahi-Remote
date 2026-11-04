@@ -1,0 +1,160 @@
+<Window x:Class="MahiRemote.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Mahi Remote Control — Operator Workstation (Sylhet NOC)" Height="800" Width="1280"
+        Background="{StaticResource BgDark}"
+        WindowStartupLocation="CenterScreen">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="32" />
+        </Grid.RowDefinitions>
+
+        <!-- Top Header Bar -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceDark}" BorderBrush="{StaticResource BorderDark}" BorderThickness="0,0,0,1" Padding="16,0">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="{StaticResource MintAccent}" Margin="0,0,8,0" />
+                    <TextBlock Text="MAHI REMOTE CONTROL" Foreground="{StaticResource CyanAccent}" FontWeight="Bold" FontSize="14" LetterSpacing="2" VerticalAlignment="Center" />
+                    <TextBlock Text=" | Windows Controller v1.0.0 (Operator: Sylhet NOC)" Foreground="{StaticResource TextSecondary}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Name="BtnPairNew" Content="+ Pair Device" Background="{StaticResource CyanAccent}" Foreground="#0D1117" FontWeight="Bold" Padding="12,6" Margin="0,0,8,0" BorderThickness="0" Click="BtnPairNew_Click" />
+                    <Button Name="BtnEmergencyKill" Content="Emergency Disconnect" Background="{StaticResource ErrorCoral}" Foreground="#0D1117" FontWeight="Bold" Padding="12,6" BorderThickness="0" Click="BtnEmergencyKill_Click" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Main Body Grid: Sidebar | Screen Viewport | Tooling Pane -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Sidebar: Devices List -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceDark}" BorderBrush="{StaticResource BorderDark}" BorderThickness="0,0,1,0" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="PAIRED ANDROID DEVICES" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold" LetterSpacing="1" Margin="0,0,0,10" />
+                    
+                    <ListBox Name="LstDevices" Background="Transparent" BorderThickness="0" SelectionChanged="LstDevices_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceElevated}" BorderBrush="{StaticResource BorderDark}" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DeviceName}" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" />
+                                        <TextBlock Text="{Binding DeviceId}" Foreground="{StaticResource CyanAccent}" FontSize="10" FontFamily="Consolas" Margin="0,2,0,0" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding NetworkType}" Foreground="{StaticResource TextSecondary}" FontSize="11" />
+                                            <TextBlock Text=" • " Foreground="{StaticResource TextSecondary}" FontSize="11" />
+                                            <TextBlock Text="{Binding BatteryPercent, StringFormat='{}{0}% Batt'}" Foreground="{StaticResource MintAccent}" FontSize="11" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Center: Remote Phone Display Viewport & Toolbar -->
+            <Grid Grid.Column="1" Background="#0A0C10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="46" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Remote Interaction Toolbar -->
+                <Border Grid.Row="0" Background="{StaticResource SurfaceDark}" BorderBrush="{StaticResource BorderDark}" BorderThickness="0,0,0,1" Padding="10,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Name="BtnNavBack" Content="◄ Back" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" Margin="0,0,6,0" Padding="8,4" BorderThickness="0" Click="BtnNavBack_Click" />
+                        <Button Name="BtnNavHome" Content="● Home" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" Margin="0,0,6,0" Padding="8,4" BorderThickness="0" Click="BtnNavHome_Click" />
+                        <Button Name="BtnNavRecents" Content="■ Recents" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" Margin="0,0,6,0" Padding="8,4" BorderThickness="0" Click="BtnNavRecents_Click" />
+                        <Button Name="BtnNavNotifs" Content="▼ Notifications" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" Margin="0,0,12,0" Padding="8,4" BorderThickness="0" Click="BtnNavNotifs_Click" />
+
+                        <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,6,12,6" />
+
+                        <ComboBox Name="CmbQuality" SelectedIndex="1" Width="130" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" SelectionChanged="CmbQuality_SelectionChanged">
+                            <ComboBoxItem Content="1080p (60 FPS)" />
+                            <ComboBoxItem Content="720p (30 FPS)" />
+                            <ComboBoxItem Content="480p (15 FPS)" />
+                        </ComboBox>
+
+                        <TextBlock Name="TxtStreamMetrics" Text="30 FPS | 2048 Kbps | 32 ms RTT" Foreground="{StaticResource TextSecondary}" FontSize="11" FontFamily="Consolas" VerticalAlignment="Center" Margin="14,0,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Phone Canvas Container -->
+                <Border Grid.Row="1" Padding="20">
+                    <Border Background="#000000" BorderBrush="{StaticResource CyanAccent}" BorderThickness="2" CornerRadius="16" Width="360" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid Name="PhoneScreenCanvas" MouseDown="PhoneScreen_MouseDown" MouseUp="PhoneScreen_MouseUp" MouseWheel="PhoneScreen_MouseWheel">
+                            <!-- Stream Render Surface -->
+                            <Image Name="ImgStreamSurface" Stretch="UniformToFill" />
+                            
+                            <!-- Placeholder Overlay if stream offline -->
+                            <StackPanel Name="PnlStreamPlaceholder" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="📱" FontSize="48" HorizontalAlignment="Center" />
+                                <TextBlock Text="Mahi Remote Screen Stream" Foreground="{StaticResource CyanAccent}" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                                <TextBlock Text="Click anywhere on canvas to send tap / gesture" Foreground="{StaticResource TextSecondary}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Border>
+            </Grid>
+
+            <!-- Right Supporting Pane: Tools & Diagnostics -->
+            <Border Grid.Column="2" Background="{StaticResource SurfaceDark}" BorderBrush="{StaticResource BorderDark}" BorderThickness="1,0,0,0" Padding="12">
+                <TabControl Background="Transparent" BorderThickness="0">
+                    <!-- Tab 1: Diagnostics -->
+                    <TabItem Header="Diagnostics" Foreground="{StaticResource TextPrimary}">
+                        <StackPanel Margin="0,10,0,0">
+                            <Button Name="BtnRunRemoteDiag" Content="Run Remote Diagnostics Suite" Background="{StaticResource CyanAccent}" Foreground="#0D1117" FontWeight="Bold" Padding="10" BorderThickness="0" Click="BtnRunRemoteDiag_Click" />
+                            
+                            <TextBlock Text="SYSTEM HEALTH &amp; TELEMETRY" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold" Margin="0,14,0,6" />
+                            <Border Background="{StaticResource SurfaceElevated}" BorderBrush="{StaticResource BorderDark}" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Device: Samsung S24 Ultra (Noakhali)" Foreground="{StaticResource TextPrimary}" FontSize="12" />
+                                    <TextBlock Text="OS: Android 14 (Security Patch 2026-09)" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="0,2,0,0" />
+                                    <TextBlock Text="Battery: 86% (Good, 31.2°C, Charging)" Foreground="{StaticResource MintAccent}" FontSize="11" Margin="0,2,0,0" />
+                                    <TextBlock Text="Storage: 182.4 GB free / 256 GB total" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="0,2,0,0" />
+                                    <TextBlock Text="DNS &amp; Internet: Verified (18ms to 8.8.8.8)" Foreground="{StaticResource MintAccent}" FontSize="11" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="SECURITY AUDIT TRAIL" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold" Margin="0,14,0,6" />
+                            <TextBox Name="TxtAuditBox" Background="{StaticResource BgDark}" Foreground="{StaticResource TextSecondary}" BorderBrush="{StaticResource BorderDark}" Height="220" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="10" VerticalScrollBarVisibility="Auto" />
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- Tab 2: Apps & Files -->
+                    <TabItem Header="Apps &amp; Files" Foreground="{StaticResource TextPrimary}">
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBlock Text="REMOTE APP LAUNCHER" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold" Margin="0,0,0,6" />
+                            <TextBox Name="TxtAppPkg" Text="com.android.settings" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource BorderDark}" Padding="6" Margin="0,0,0,8" />
+                            <Button Name="BtnLaunchApp" Content="Launch Package on Device" Background="{StaticResource MintAccent}" Foreground="#0D1117" FontWeight="Bold" Padding="8" BorderThickness="0" Click="BtnLaunchApp_Click" />
+
+                            <TextBlock Text="SCOPED STORAGE EXPLORER" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold" Margin="0,16,0,6" />
+                            <Button Name="BtnBrowseFiles" Content="Browse Scoped Documents" Background="{StaticResource SurfaceElevated}" Foreground="{StaticResource TextPrimary}" Padding="8" BorderThickness="0" Click="BtnBrowseFiles_Click" />
+                            <ListBox Name="LstRemoteFiles" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderDark}" Height="180" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <!-- Status Bottom Bar -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceElevated}" BorderBrush="{StaticResource BorderDark}" BorderThickness="0,1,0,0" Padding="12,0">
+            <DockPanel LastChildFill="False">
+                <TextBlock Name="TxtStatusBar" Text="Ready. End-to-end encrypted session established with Noakhali device." Foreground="{StaticResource TextSecondary}" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Right" Text="Mahi Remote Protocol v1.0 | WebRTC H.264 / DataChannel" Foreground="{StaticResource TextSecondary}" FontSize="11" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

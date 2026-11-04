@@ -1,0 +1,1297 @@
+# MAHI REMOTE CONTROL — FINAL PRODUCTION ENGINEERING & COMPLETION DIRECTIVE
+## Complete Android-to-Android + Browser-to-Android Remote Control Ecosystem
+
+### ROLE
+
+Act as the Principal Software Architect, Senior Android Engineer, WebRTC Specialist, Backend Security Engineer, Full-Stack Developer, DevOps Architect, and QA Lead responsible for completing Mahi Remote Control.
+
+You are now authorized to inspect, modify, implement, refactor, and validate the actual source code within the EXISTING Google AI Studio project workspace.
+
+This is an implementation task, not another audit-only task.
+
+Your responsibility is to take the existing application from its current intermediate integration state to a reliable, secure, fully integrated remote-control product.
+
+Do not generate a replacement application.
+
+Do not merely produce recommendations, code snippets, or an implementation plan.
+
+Make actual source-code changes wherever the current workspace supports them.
+
+Preserve existing functionality and architecture wherever technically reasonable.
+
+---
+
+# 1. PROJECT IDENTITY AND CONTEXT
+
+**Product:** Mahi Remote Control
+
+**Project:** https://ai.studio/apps/78a62340-cc3b-4bcb-8674-7f08cf3175be
+
+**Repository reference:** https://github.com/mahimahfud-ui/Mahi-Remote-Control
+
+**Design system:** Obsidian Telemetry
+
+Mahi Remote Control is a cross-platform remote Android device access and control application.
+
+It must provide two equally important controller options:
+
+### MODE A — ANDROID PHONE → ANDROID PHONE
+
+Phone A is the controller.
+
+Phone B is the receiver.
+
+Phone A must connect to Phone B, display its actual entire screen, and perform supported remote interactions.
+
+### MODE B — BROWSER → ANDROID PHONE
+
+A desktop or mobile browser acts as the controller.
+
+The Android phone is the receiver.
+
+The browser must display the actual receiver screen and support remote interaction.
+
+### RECEIVER MODE — SHARE THIS PHONE
+
+The same Android application must support receiver mode.
+
+A receiver can generate a pairing code, authorize a controller, approve permissions, share its screen, and immediately terminate the connection.
+
+These are two controller experiences connected to ONE unified Android receiver architecture.
+
+Do not create separate incompatible screen-capture systems for the two modes.
+
+---
+
+# 2. IMPORTANT SOURCE AND AUDIT BASELINE
+
+The previous independent audit reported:
+
+- Android project compilation passed.
+- Backend TypeScript compilation passed.
+- Seven backend integration tests passed.
+- Five Android Robolectric tests passed.
+- Android dual-role UI exists.
+- Pairing PIN generation and validation exist.
+- QR generation exists.
+- QR scanner is incomplete.
+- Accessibility-based input dispatch exists.
+- Dynamic display-coordinate mapping exists.
+- WebSocket signaling exists.
+- Emergency disconnect exists.
+- Native Android WebRTC dependency is missing.
+- The genuine MediaProjection-to-WebRTC video pipeline is incomplete.
+- Browser video track reception is incomplete.
+- DeviceIdentity cryptographic signing is insufficient.
+- Backend pairing/session state uses in-memory Maps.
+- PostgreSQL schema exists but is not operationally integrated.
+- TURN development credentials need replacement.
+- Some displayed telemetry is simulated.
+
+These findings are the initial engineering baseline, not unquestionable truth.
+
+First inspect the CURRENT Google AI Studio source.
+
+Verify every finding against the current source before implementing it.
+
+If the source has already changed, do not overwrite newer improvements.
+
+Do not assume an earlier audit result represents the current workspace.
+
+---
+
+# 3. AUTHORIZATION AND OPERATIONAL RESTRICTIONS
+
+You are authorized to modify source files inside the existing project workspace.
+
+You are NOT authorized to:
+
+- Push code to GitHub.
+- Create Git commits.
+- Modify remote repositories.
+- Connect to my Google account.
+- Access external private accounts.
+- Publish the Google AI Studio application.
+- Export the application.
+- Deploy the backend or frontend.
+- Change live production hosting.
+- Modify production databases.
+- Delete external resources.
+- Expose secrets.
+- Ask me to share passwords or API keys.
+
+Implement and validate everything possible within the current project workspace.
+
+Prepare production deployment configuration but do not deploy it.
+
+Keep required credentials in environment variables and document how they must be configured.
+
+Do not fabricate successful deployments or physical-device tests.
+
+---
+
+# 4. PHASE ZERO — VERIFY THE ACTUAL CODEBASE
+
+Before editing anything, inventory the complete current project.
+
+Inspect:
+
+## Android
+
+- MainActivity.kt
+- MainActivity launcher and permission flow
+- PairingScreen.kt
+- ControllerDashboardScreen.kt
+- ControllerViewerScreen.kt
+- MahiViewModel.kt
+- ScreenCaptureService.kt
+- ReceiverApprovalBottomSheet.kt
+- ScreenShareForegroundService.kt
+- MahiAccessibilityService.kt
+- SignalingClient.kt
+- PairingManager.kt
+- DeviceIdentity.kt
+- DiagnosticsManager.kt
+- AndroidManifest.xml
+- Gradle configuration
+- Version catalog
+
+## Backend
+
+- backend/src/index.ts
+- backend/src/api/routes.ts
+- backend/src/authentication/AuthService.ts
+- backend/src/device-management/DeviceService.ts
+- backend/src/signaling/SignalingHub.ts
+
+## Browser
+
+- backend/public/index.html
+- backend/public/app.js
+- backend/public/css/
+
+## Infrastructure
+
+- infrastructure/docker-compose.yml
+- infrastructure/postgres/init.sql
+- Coturn configuration
+- Environment configuration
+
+## Windows
+
+Preserve the existing Windows WPF application and inspect its signaling compatibility.
+
+Do not rebuild it unnecessarily.
+
+Create a verified source inventory.
+
+Identify:
+
+- Already implemented functionality.
+- Incomplete integrations.
+- Simulated behavior.
+- Duplicate logic.
+- Security weaknesses.
+- Missing dependencies.
+- Existing tests.
+
+Then proceed with the implementation.
+
+Do not stop after producing the inventory.
+
+---
+
+# 5. P0 — IMPLEMENT THE REAL ANDROID WEBRTC VIDEO PIPELINE
+
+This is the most important missing functionality.
+
+Screen mirroring must become genuinely operational.
+
+The Android receiver must capture its actual screen, encode real frames, transmit them through WebRTC, and deliver the stream to both controller types.
+
+## 5.1 Native Android WebRTC dependency
+
+Inspect:
+
+- gradle/libs.versions.toml
+- app/build.gradle.kts
+- Existing Android Gradle Plugin.
+- Kotlin version.
+- Min SDK.
+- Target SDK.
+- Java compatibility.
+- Dependency repositories.
+
+Select a maintained Android WebRTC library that is compatible with the current project.
+
+Verify the actual artifact and API compatibility before selecting its version.
+
+Pin the exact dependency version.
+
+Avoid guessing dependency versions or adding multiple competing WebRTC implementations.
+
+If the previously proposed Stream WebRTC version is incompatible, select a verified alternative and document why.
+
+## 5.2 WebRTC initialization
+
+Implement:
+
+- PeerConnectionFactory.
+- EGL context.
+- VideoSource.
+- VideoTrack.
+- VideoCapturer.
+- Audio disabled by default.
+- Proper lifecycle disposal.
+- Encoder/decoder configuration.
+- Hardware acceleration where supported.
+
+Use one shared native WebRTC session manager.
+
+## 5.3 Actual MediaProjection capture
+
+Implement the complete receiver pipeline:
+
+Android MediaProjection
+→ Full-device screen capturer
+→ VideoSource
+→ VideoTrack
+→ PeerConnection
+→ STUN/TURN
+→ Remote controller.
+
+Use the Android WebRTC ScreenCapturerAndroid integration where appropriate.
+
+Avoid creating a second competing VirtualDisplay when the selected capturer already owns that lifecycle.
+
+Use a proper foreground service.
+
+Handle:
+
+- MediaProjection consent.
+- Projection callbacks.
+- Capture startup.
+- Capture termination.
+- Projection revocation.
+- Screen rotation.
+- Resolution changes.
+- Surface lifecycle.
+- Resource cleanup.
+- Service teardown.
+
+Do not generate fake FPS or bitrate during capture.
+
+A projection permission grant alone must never mark a session as streaming.
+
+A session becomes STREAMING only after a real remote video track is received and actual frames are rendered.
+
+---
+
+# 6. P0 — FULL-DEVICE CAPTURE AND ORIGINAL ANDROID NAVIGATION
+
+This requirement is non-negotiable.
+
+The controller must see the actual complete receiver display.
+
+Required:
+
+- Original receiver status bar.
+- Original system icons.
+- Actual receiver applications.
+- Original Android navigation bar.
+- Gesture navigation handle.
+- Traditional three-button navigation.
+- Actual wallpaper.
+- Actual screen orientation.
+- Actual system UI.
+
+No fake phone screen.
+
+No recreated status bar.
+
+No recreated navigation bar.
+
+No second Back/Home/Recents strip below the video.
+
+## 6.1 Android full-display capture
+
+For modern Android versions, inspect the available MediaProjection configuration APIs.
+
+Where supported and required, use the appropriate full-default-display capture configuration, including MediaProjectionConfig.createConfigForDefaultDisplay() on compatible Android releases.
+
+Obtain explicit user consent.
+
+Do not bypass Android's screen-capture selection or permission UI.
+
+Respect Android version-specific MediaProjection rules.
+
+A projection session must create and manage its display capture resources according to the relevant OS restrictions.
+
+Handle MediaProjection callbacks correctly.
+
+Verify that the actual capture includes the original status and navigation bars.
+
+Do not infer this solely from documentation or API names.
+
+## 6.2 Runtime verification
+
+Test separately:
+
+- Gesture navigation.
+- Three-button navigation.
+- Portrait.
+- Landscape.
+- Screen rotation during streaming.
+- Different screen resolutions.
+- Android versions supported by the project.
+
+The actual receiver navigation interface must appear naturally inside the captured video.
+
+---
+
+# 7. P0 — COMPLETE ANDROID-TO-ANDROID CONTROLLER
+
+Implement a real Android WebRTC receiving client.
+
+Phone A must establish a PeerConnection with Phone B.
+
+Implement:
+
+- Native WebRTC initialization.
+- Remote SDP handling.
+- ICE candidate exchange.
+- Incoming video track.
+- Video renderer.
+- Video frame reception.
+- Dynamic display sizing.
+- Aspect-ratio preservation.
+- Rotation support.
+- Connection-state handling.
+- Reconnection.
+- Teardown.
+
+Use the appropriate Android renderer, such as SurfaceViewRenderer, with correct lifecycle handling.
+
+The controller viewer must show genuine received video frames.
+
+Do not use a fake Canvas phone interface or touch ripples as a substitute for real video.
+
+Keep the current Obsidian Telemetry visual direction.
+
+---
+
+# 8. P0 — COMPLETE BROWSER-TO-ANDROID VIDEO STREAMING
+
+The browser console must receive genuine Android video.
+
+Implement:
+
+- RTCPeerConnection.
+- Correct SDP negotiation.
+- ICE candidate handling.
+- Remote video track subscription.
+- HTML video element attachment.
+- Video playback lifecycle.
+- WebRTC connection events.
+- Fullscreen API.
+- Reconnection.
+- Session teardown.
+
+Preserve the current browser console and design.
+
+Use the existing #remoteVideo element as the actual video source.
+
+The #canvasWrapper and #phoneCanvas elements must not fabricate a phone display or simulate successful screen sharing.
+
+A genuine remote video track must be the source of truth.
+
+A placeholder may be shown before streaming begins, but it must clearly indicate that no video is currently connected.
+
+Do not hide missing video behind simulated phone content.
+
+---
+
+# 9. P0 — ONE SHARED WEBRTC SESSION PROTOCOL
+
+Android-to-Android and Browser-to-Android must use the same receiver session contract.
+
+Use WebSocket for:
+
+- Authentication.
+- Device registration.
+- Pairing.
+- Approval.
+- Session lifecycle.
+- SDP signaling.
+- ICE signaling.
+- Recovery notifications.
+
+Use WebRTC for:
+
+- Real video.
+- Remote input DataChannel.
+- Control acknowledgements.
+- Real-time session control.
+
+Define a versioned, documented protocol.
+
+### Recommended negotiation model
+
+After an authenticated controller is approved:
+
+1. Controller creates a PeerConnection.
+2. Controller adds a receive-only video transceiver.
+3. Controller creates a reliable, ordered input DataChannel.
+4. Controller creates an SDP offer.
+5. Offer is sent to the specifically authorized receiver.
+6. Receiver sets the remote description.
+7. Receiver attaches its actual screen VideoTrack.
+8. Receiver creates and sends its SDP answer.
+9. Both peers exchange trickle ICE candidates.
+10. Connection reaches a valid ICE and PeerConnection state.
+11. Controller receives actual video frames.
+12. Input DataChannel becomes operational.
+
+If the current architecture requires a different negotiation direction, choose one consistent model and implement it for both browser and Android controllers.
+
+Do not maintain competing signaling protocols.
+
+Use explicit session IDs, sender IDs, target IDs, and event types.
+
+Never broadcast sensitive SDP, ICE, or remote-control operations to unrelated devices.
+
+---
+
+# 10. P0 — COMPLETE REMOTE INPUT
+
+The product must support actual remote interaction, not merely screen mirroring.
+
+Preserve the existing MahiAccessibilityService and improve it where needed.
+
+Implement and validate:
+
+- Tap.
+- Double tap.
+- Long press.
+- Swipe.
+- Scroll.
+- Drag.
+- Pinch gestures where supported.
+- Text entry.
+- Back.
+- Home.
+- Recents.
+- Notification shade.
+- Quick Settings.
+- Volume adjustment.
+
+All commands must be delivered through the authenticated session's DataChannel or the appropriate shared input protocol.
+
+Validate receiver-side commands.
+
+## 10.1 Coordinate mapping
+
+Remove any remaining fixed 1080×1920 assumptions.
+
+Use actual receiver display metadata:
+
+- Logical width.
+- Logical height.
+- Rotation.
+- Density.
+- Video dimensions.
+- Actual visible content rectangle.
+- Aspect ratio.
+
+Map pointer coordinates from the controller's rendered video content rectangle to receiver screen coordinates.
+
+Account for letterboxing and object-fit behavior.
+
+Support landscape and portrait.
+
+Handle changing video dimensions.
+
+Reject invalid or out-of-bounds input.
+
+## 10.2 System navigation
+
+Do not introduce another navigation toolbar.
+
+The original receiver navigation area remains visible within the video.
+
+Forward supported navigation gestures through the AccessibilityService and use approved Android global actions where needed.
+
+Provide a minimal optional contextual action for cases where a direct gesture is not supported, but never create a permanently visible duplicate navigation bar.
+
+## 10.3 Accessibility permission
+
+Explain and request explicit owner authorization.
+
+Do not bypass Android's Accessibility activation screen.
+
+Show an accurate unavailable state if the service is disabled.
+
+The receiver owner must always remain able to stop the session.
+
+Respect Android protections for FLAG_SECURE screens, authentication overlays, and protected system interfaces.
+
+---
+
+# 11. P0 — REPAIR SECURITY BEFORE ENABLING FULL REMOTE CONTROL
+
+The reported authentication and device identity weaknesses are release blockers.
+
+Implement real security.
+
+## 11.1 AndroidKeyStore device identity
+
+Replace simulated fingerprints/signatures.
+
+Implement:
+
+- Genuine asymmetric EC key pair.
+- AndroidKeyStore private-key protection.
+- Public-key registration.
+- SHA-256 public-key fingerprint.
+- Secure challenge-response.
+- Real ECDSA signing.
+- Real server-side signature verification.
+- Key rotation or re-registration strategy where appropriate.
+
+Use SHA256withECDSA or another properly supported secure signature scheme.
+
+Never accept a signature merely because its string length looks valid.
+
+Private keys must never leave Android Keystore.
+
+## 11.2 WebSocket authentication
+
+Do not trust x-device-id or other unverified client headers as identity proof.
+
+Implement an authenticated initial handshake.
+
+No client should be able to send REGISTER, PAIR_BY_CODE, INPUT_EVENT, FILE_COMMAND, APP_COMMAND, or DIAGNOSTICS_RUN before successful authentication.
+
+For browser connections, use an appropriate secure authentication exchange.
+
+Prefer a short-lived, single-use WebSocket ticket obtained through an authenticated HTTPS endpoint, or a carefully implemented initial AUTH message.
+
+Do not expose long-lived bearer tokens in URLs or logs.
+
+## 11.3 Authorization
+
+Every remote command must validate:
+
+- Authenticated user/device.
+- Session ownership.
+- Controller role.
+- Receiver role.
+- Explicit owner approval.
+- Command scope.
+- Session expiration.
+- Session status.
+
+A valid device identity alone must not authorize remote input.
+
+Use secure session-scoped command routing.
+
+Add rate limits and replay protection.
+
+## 11.4 Secrets and JWT
+
+Remove hardcoded production JWT fallback values.
+
+Require environment-provided secret configuration.
+
+Production must refuse to start insecurely when required secrets are absent.
+
+Keep public/private credentials separate.
+
+Never return TURN shared secrets to browsers.
+
+## 11.5 Receiver safety
+
+The receiver must:
+
+- Show who is connected.
+- Show that screen sharing is active.
+- Display the appropriate persistent foreground notification.
+- Allow immediate local stop.
+- Terminate WebRTC.
+- Release screen-capture resources.
+- Revoke the active session.
+- Inform the controller.
+
+Remote access must never be covert.
+
+---
+
+# 12. P1 — IMPLEMENT REAL COTURN FALLBACK
+
+Complete TURN relay support.
+
+Inspect the current Coturn setup.
+
+Replace development credentials with dynamic time-limited credentials.
+
+Use a server-only shared TURN secret.
+
+Implement the Coturn REST credential mechanism:
+
+- Time-limited username.
+- HMAC-based credential generation.
+- Credential expiry.
+- Server-side secret storage.
+- Authenticated credential endpoint.
+
+Return only short-lived credentials to authorized peers.
+
+Configure:
+
+- STUN server.
+- TURN UDP.
+- TURN TCP fallback.
+- TURN TLS where infrastructure supports it.
+
+Handle ICE candidate selection and report whether a connection is direct P2P or TURN-relayed.
+
+Test both paths where infrastructure is available.
+
+Never pretend TURN fallback occurred just because ICE negotiation was initiated.
+
+---
+
+# 13. P1 — CONNECT POSTGRESQL PERSISTENCE
+
+The current audit indicates that the backend stores pairing codes, registered devices, and sessions in in-memory JavaScript Maps.
+
+Replace production storage with the existing PostgreSQL architecture.
+
+Inspect:
+
+infrastructure/postgres/init.sql
+
+Implement the actual database pool and repositories.
+
+Use appropriate tables for:
+
+- Devices.
+- Public keys.
+- Pairing codes.
+- Sessions.
+- Authorized device relationships.
+- Audit logs.
+
+Implement:
+
+- Idempotent migrations.
+- Connection pooling.
+- Prepared SQL queries.
+- Transactions.
+- Indexes.
+- Expiration cleanup.
+- Consistent timestamp handling.
+
+Pairing code consumption must be atomic and single-use.
+
+Do not store pairing PINs in plaintext when a suitable hash-based verification design can be used.
+
+Keep WebSocket presence ephemeral where appropriate, but make the required device and session data persistent.
+
+Production must not silently fall back to insecure in-memory storage.
+
+Provide a clearly separated development adapter only if needed.
+
+---
+
+# 14. P1 — COMPLETE QR SCANNER
+
+QR generation already exists according to the audit, but live camera scanning is incomplete.
+
+Implement a genuine QR scanning experience.
+
+Use compatible CameraX and a maintained barcode scanning library such as ML Kit where appropriate.
+
+Implement:
+
+- Camera permission.
+- Live viewfinder.
+- QR detection.
+- Payload validation.
+- Receiver identification.
+- Pairing code extraction.
+- Connection request.
+- Duplicate scan prevention.
+- Manual PIN fallback.
+- Camera lifecycle handling.
+
+QR payloads must never be trusted without backend validation.
+
+---
+
+# 15. P1 — REAL TELEMETRY AND DIAGNOSTICS
+
+Remove simulated stream metrics.
+
+Use actual WebRTC statistics.
+
+Implement:
+
+- Actual FPS.
+- Actual RTT.
+- Actual bitrate.
+- Packet loss.
+- Jitter.
+- Frame drops.
+- Video resolution.
+- ICE connection state.
+- Selected candidate pair.
+- P2P versus TURN.
+- Reconnection count.
+
+Keep hardware diagnostics where real Android APIs provide them:
+
+- Battery.
+- RAM.
+- Thermal information.
+- Storage.
+
+Clearly distinguish unavailable metrics.
+
+Do not generate random or periodic fake connection success values.
+
+Do not show sample IP addresses as real device data.
+
+---
+
+# 16. P1 — SHARED 16-STATE LIFECYCLE
+
+Implement one consistent lifecycle state model across Android, browser, and backend.
+
+The following 16 operational states should be represented consistently:
+
+1. IDLE
+2. RECEIVER_STANDBY
+3. PAIRING_CODE_ACTIVE
+4. PAIRING_REQUESTED
+5. AWAITING_APPROVAL
+6. PAIRING_REJECTED
+7. APPROVED
+8. PERMISSION_PENDING
+9. CAPTURE_STARTING
+10. SIGNALING_CONNECTING
+11. WEBRTC_NEGOTIATING
+12. CONNECTED
+13. STREAMING
+14. RECOVERING
+15. TERMINATING
+16. TERMINATED
+
+These are lifecycle states, not decorative UI labels.
+
+For each transition define:
+
+- Trigger.
+- Valid source state.
+- Target state.
+- Controller behavior.
+- Receiver behavior.
+- Backend behavior.
+- User-visible status.
+- Timeout.
+- Failure handling.
+- Resource cleanup.
+
+Keep INPUT commands and transient telemetry events separate from the session lifecycle.
+
+Ensure both controller options and the receiver interpret the same lifecycle consistently.
+
+---
+
+# 17. P1 — COMPLETE FAILURE AND RECOVERY
+
+Implement real failure handlers for:
+
+1. Invalid PIN.
+2. Expired PIN.
+3. Pairing rejected.
+4. Receiver offline.
+5. MediaProjection denied.
+6. Accessibility disabled.
+7. Screen capture revoked.
+8. WebRTC negotiation timeout.
+9. ICE direct connection failure.
+10. TURN fallback.
+11. Network interruption.
+12. Successful reconnection.
+13. Controller disconnected.
+14. Receiver stops sharing.
+15. Emergency disconnect.
+16. Duplicate/replayed input command.
+17. Android orientation change.
+18. Display resolution change.
+
+For every failure:
+
+- Update the actual session state.
+- Show a clear user-facing message.
+- Stop unauthorized input.
+- Release resources correctly.
+- Reconnect only when appropriate.
+- Keep the receiver owner informed.
+
+Do not produce fake recovery success.
+
+Use exponential backoff and bounded retries where appropriate.
+
+---
+
+# 18. PRESERVE AND COMPLETE THE EXISTING APP
+
+Preserve the existing Obsidian Telemetry design system.
+
+Do not redesign the application from scratch.
+
+Preserve existing functionality including:
+
+- Device management.
+- Pairing.
+- File management.
+- App management.
+- Diagnostics.
+- Audit logging.
+- Windows desktop project.
+- Emergency disconnect.
+- Existing browser navigation.
+- Existing Android screens.
+- Existing DOM contracts.
+
+Important browser hooks that must remain compatible unless a justified migration is implemented:
+
+#connectionBadge
+#latencyDisplay
+#btnPairDevice
+#btnEmergencyKill
+#deviceList
+#canvasWrapper
+#phoneCanvas
+#remoteVideo
+#streamPlaceholder
+#streamStats
+#tabDiag
+#tabApps
+#tabFiles
+#tabLogs
+#pairModal
+#inputPairCode
+#btnSubmitPair
+
+Do not allow a new UI implementation to break working event listeners.
+
+Remote viewer must use the real WebRTC video element or actual Android video renderer.
+
+Do not use simulated Canvas phone screens.
+
+Do not add fake status bars or fake navigation bars.
+
+The receiver's original navigation bar must appear inside the actual captured video.
+
+Keep emergency disconnect obvious and accessible.
+
+All existing file and app management commands must use authenticated, explicitly authorized sessions and validated scopes.
+
+Keep root-related features optional and disabled by default.
+
+Do not weaken security for convenience.
+
+---
+
+# 19. PRODUCTION CONFIGURATION
+
+Prepare the application for genuine production operation.
+
+Inspect:
+
+- Environment variables.
+- HTTPS and WSS configuration.
+- Database configuration.
+- TURN configuration.
+- CORS.
+- Rate limiting.
+- Session expiration.
+- Logging.
+- Health endpoints.
+- Readiness endpoints.
+- Error handling.
+- Graceful shutdown.
+- Database migrations.
+- Build configuration.
+
+Provide:
+
+- .env.example without real secrets.
+- Production configuration documentation.
+- Required environment-variable list.
+- Backend setup instructions.
+- PostgreSQL setup instructions.
+- Coturn setup instructions.
+- APK installation instructions.
+- Physical-device connection instructions.
+
+Never commit actual secrets into the project.
+
+Do not deploy or publish.
+
+---
+
+# 20. P2 — AUTOMATED VALIDATION
+
+After implementing the changes, execute every available validation.
+
+### Android
+
+- Gradle compilation.
+- Unit tests.
+- Robolectric tests.
+- Lint.
+- Manifest validation.
+- Dependency validation.
+- WebRTC initialization tests.
+- Lifecycle tests.
+- Coordinate mapping tests.
+- Security tests.
+
+### Backend
+
+- TypeScript build.
+- Unit tests.
+- Integration tests.
+- Pairing tests.
+- Authorization tests.
+- Session ownership tests.
+- WebSocket routing tests.
+- Replay protection tests.
+- Database tests.
+- TURN credential tests.
+
+### Browser
+
+- JavaScript syntax.
+- UI interaction tests.
+- WebSocket authentication.
+- SDP/ICE handling.
+- Video track reception.
+- Fullscreen.
+- Input coordinate mapping.
+- Emergency disconnect.
+- Network recovery.
+
+### Cross-platform
+
+Verify protocol compatibility between:
+
+- Android Receiver.
+- Android Controller.
+- Browser Controller.
+- Backend signaling server.
+
+Do not report an executed test as passing unless you actually ran it.
+
+---
+
+# 21. PHYSICAL DEVICE ACCEPTANCE TESTS
+
+A successful source build is not the same as a working remote-control system.
+
+The following tests are mandatory before the product can be called physically verified.
+
+## Test A — Android to Android
+
+Use two real Android phones.
+
+Phone A installs the controller/receiver APK.
+
+Phone B installs the same APK.
+
+Phone B generates a pairing code.
+
+Phone A enters the code.
+
+Phone B approves.
+
+Phone B grants screen-capture permission.
+
+Phone A receives actual live video.
+
+Verify:
+
+- Original receiver status bar.
+- Original receiver navigation bar.
+- Gesture navigation.
+- Three-button navigation.
+- Real application launching.
+- Tap.
+- Swipe.
+- Drag.
+- Scroll.
+- Text entry.
+- Back.
+- Home.
+- Recents.
+- Portrait.
+- Landscape.
+- Emergency Stop.
+
+## Test B — Browser to Android
+
+Open the real browser console.
+
+Connect to Phone B.
+
+Approve on Phone B.
+
+Grant screen capture.
+
+Verify actual live video in Chrome and Edge.
+
+Test:
+
+- Fullscreen.
+- Mouse input.
+- Touch input where supported.
+- Swipe.
+- Scroll.
+- Keyboard input.
+- System navigation.
+- Original Android navigation display.
+- Network interruption.
+- Recovery.
+- Emergency disconnect.
+
+## Test C — Network
+
+Test:
+
+- Same Wi-Fi.
+- Different Wi-Fi networks.
+- Wi-Fi and mobile data.
+- Direct P2P.
+- TURN relay.
+- ICE failure.
+- Temporary disconnection.
+- Recovery.
+
+## Test D — Security
+
+Test:
+
+- Incorrect PIN.
+- Expired PIN.
+- Reused PIN.
+- Unauthorized WebSocket.
+- Invalid session token.
+- Forged device identity.
+- Unauthorized remote input.
+- Controller disconnected.
+- Receiver immediate stop.
+
+If physical devices or external infrastructure are not accessible, mark those tests PENDING PHYSICAL VERIFICATION.
+
+Never fabricate a pass.
+
+---
+
+# 22. STRICT DEFINITION OF DONE
+
+Mahi Remote Control is not finished merely because:
+
+- The app builds.
+- The dashboard opens.
+- Pairing succeeds.
+- The receiver approves.
+- MediaProjection permission is granted.
+- SDP messages are exchanged.
+- The controller shows a placeholder.
+- Touch ripples appear.
+- The user sees sample FPS and RTT.
+
+The application must have:
+
+1. Genuine Android MediaProjection screen capture.
+2. Genuine Android WebRTC video sender.
+3. Genuine Android WebRTC controller receiver.
+4. Genuine browser WebRTC controller receiver.
+5. Shared secure signaling.
+6. Real remote input.
+7. Correct receiver navigation display.
+8. Dynamic coordinate mapping.
+9. Secure authenticated sessions.
+10. Proper TURN fallback.
+11. Persistent backend data.
+12. Real telemetry.
+13. Reliable teardown.
+14. Consistent lifecycle transitions.
+15. Accurate failure handling.
+16. Existing features preserved.
+
+Both controller modes must work independently through the same receiver architecture.
+
+---
+
+# 23. IMPLEMENTATION ORDER
+
+Follow this exact priority:
+
+### Phase 0
+Verify the current source and establish a baseline.
+
+### Phase 1
+Fix cryptographic identity, WebSocket authentication, session authorization, and secure message routing.
+
+### Phase 2
+Add and integrate the native Android WebRTC dependency.
+
+### Phase 3
+Connect MediaProjection to the actual WebRTC screen-capture pipeline.
+
+### Phase 4
+Complete Android-to-Android video reception.
+
+### Phase 5
+Complete browser-to-Android video reception.
+
+### Phase 6
+Validate full-display capture, original navigation, fullscreen, and coordinate mapping.
+
+### Phase 7
+Complete remote input and command acknowledgements.
+
+### Phase 8
+Complete TURN authentication and PostgreSQL persistence.
+
+### Phase 9
+Complete QR scanning, telemetry, and failure recovery.
+
+### Phase 10
+Run automated validation and prepare physical-device acceptance tests.
+
+At every phase:
+
+- Make actual code changes.
+- Build affected modules.
+- Run relevant tests.
+- Review source diffs.
+- Fix regressions.
+- Preserve existing working functionality.
+- Update technical documentation.
+
+Do not silently skip failed steps.
+
+Do not leave dead placeholder implementations while claiming completion.
+
+---
+
+# 24. REQUIRED FINAL ENGINEERING REPORT
+
+When implementation is complete, produce a detailed final report.
+
+Include:
+
+1. Updated project architecture.
+2. Files modified.
+3. New dependencies and exact versions.
+4. Android WebRTC implementation.
+5. Actual MediaProjection integration.
+6. Android-to-Android status.
+7. Browser-to-Android status.
+8. Shared signaling protocol.
+9. Remote input implementation.
+10. Full-screen capture and original navigation verification.
+11. Security changes.
+12. PostgreSQL integration.
+13. Coturn configuration.
+14. Real telemetry implementation.
+15. Lifecycle implementation.
+16. Tests actually executed.
+17. Build results.
+18. Outstanding physical-device tests.
+19. Remaining limitations.
+20. Production setup checklist.
+
+For each feature use these statuses:
+
+- IMPLEMENTED AND AUTOMATED-TESTED.
+- IMPLEMENTED — PHYSICAL TEST REQUIRED.
+- PARTIALLY IMPLEMENTED.
+- BLOCKED BY EXTERNAL INFRASTRUCTURE.
+- BLOCKED BY ANDROID PLATFORM.
+- NOT IMPLEMENTED.
+
+Include source-file paths and actual code evidence.
+
+Distinguish source verification, automated tests, simulated previews, and real physical-device tests.
+
+Do not award yourself a 100% completion score without verified evidence.
+
+---
+
+# 25. START NOW — TAKE ENGINEERING OWNERSHIP
+
+Begin inspecting the CURRENT Google AI Studio workspace.
+
+Preserve the latest existing source.
+
+Implement the missing real functionality rather than generating another audit report.
+
+The most important immediate task is completing the genuine Android MediaProjection-to-WebRTC video pipeline, then ensuring that both Android and browser controllers can receive that same real stream.
+
+Secure the session architecture before allowing unrestricted remote commands.
+
+Do not stop after planning.
+
+Do not respond with only code snippets.
+
+Use the available source-editing and testing tools to make the changes directly.
+
+If a required integration cannot be completed because a dependency, credential, external server, or physical device is unavailable, complete all remaining work and explain the exact blocker.
+
+Keep the project unchanged on remote GitHub and hosting services.
+
+Do not publish, export, deploy, or Git push.
+
+The goal is a genuinely usable, secure, reliable Mahi Remote Control ecosystem.
+
+**FINAL PRODUCT REQUIREMENT**
+
+One Android receiver architecture.
+
+Two genuine controller modes:
+
+1. Android Phone → Android Phone.
+2. Browser → Android Phone.
+
+Real full-device screen mirroring.
+
+The receiver's original Android navigation and system UI inside the streamed display.
+
+Actual supported remote input.
+
+Secure owner authorization.
+
+Real WebRTC connectivity.
+
+P2P and TURN support.
+
+Reliable reconnection.
+
+Immediate emergency disconnect.
+
+No fake screens.
+
+No simulated connection success.
+
+No exposed secrets.
+
+No broken existing features.
+
+**Complete the existing product. Preserve what works. Fix what is missing. Verify what is real.**

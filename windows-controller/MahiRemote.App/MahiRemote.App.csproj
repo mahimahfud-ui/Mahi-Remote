@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <RootNamespace>MahiRemote.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MahiRemote.Core\MahiRemote.Core.csproj" />
+    <ProjectReference Include="..\MahiRemote.Security\MahiRemote.Security.csproj" />
+    <ProjectReference Include="..\MahiRemote.WebRTC\MahiRemote.WebRTC.csproj" />
+    <ProjectReference Include="..\MahiRemote.Devices\MahiRemote.Devices.csproj" />
+  </ItemGroup>
+</Project>

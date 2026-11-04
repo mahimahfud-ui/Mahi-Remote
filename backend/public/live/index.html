@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Mahi Live Presentation Layer</title>
+  <link rel="stylesheet" href="live.css">
+</head>
+<body>
+  <div class="live-app" id="live-root">
+    <!-- Top Status Bar for Live Presentation -->
+    <header class="live-topbar">
+      <div class="live-brand">
+        <span class="live-dot" id="live-dot"></span>
+        <span class="live-title" id="live-title">MAHI OBSIDIAN TELEMETRY</span>
+      </div>
+      <div class="live-meta">
+        <span class="live-badge" id="live-version-badge">LIVE UI v1.0.0</span>
+      </div>
+    </header>
+
+    <!-- Main Live Screen Cards -->
+    <main class="live-content">
+      <!-- Device Telemetry Card -->
+      <section class="live-card">
+        <div class="card-header">
+          <span class="card-title">Hardware Telemetry & Health</span>
+          <span class="card-action" onclick="window.refreshTelemetry()">Refresh</span>
+        </div>
+        <div class="telemetry-grid">
+          <div class="tel-item">
+            <span class="tel-label">Battery</span>
+            <span class="tel-val" id="tel-battery">--%</span>
+            <div class="bar-track"><div class="bar-fill" id="bar-battery" style="width:0%"></div></div>
+          </div>
+          <div class="tel-item">
+            <span class="tel-label">CPU Temp</span>
+            <span class="tel-val" id="tel-temp">-- °C</span>
+            <div class="bar-track"><div class="bar-fill" id="bar-temp" style="width:0%"></div></div>
+          </div>
+          <div class="tel-item">
+            <span class="tel-label">Storage Free</span>
+            <span class="tel-val" id="tel-storage">-- GB</span>
+            <div class="bar-track"><div class="bar-fill" id="bar-storage" style="width:0%"></div></div>
+          </div>
+          <div class="tel-item">
+            <span class="tel-label">Memory</span>
+            <span class="tel-val" id="tel-memory">-- MB</span>
+            <div class="bar-track"><div class="bar-fill" id="bar-memory" style="width:0%"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Native Actions -->
+      <section class="live-card">
+        <div class="card-header">
+          <span class="card-title">Native Service Controls</span>
+          <span class="chip-status" id="native-bridge-status">Native Core Linked</span>
+        </div>
+        <div class="action-grid">
+          <button class="action-btn" onclick="window.triggerScreenShare()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span>Toggle Screen Share</span>
+          </button>
+          <button class="action-btn" onclick="window.openNetworkSettings()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Backend Settings</span>
+          </button>
+          <button class="action-btn" onclick="window.checkLiveUpdate()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Check UI Update</span>
+          </button>
+          <button class="action-btn danger" onclick="window.emergencyKill()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <span>Emergency Kill</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Active Pairing Presentation -->
+      <section class="live-card">
+        <div class="card-header">
+          <span class="card-title">Live Presentation Status</span>
+          <span class="chip-status" style="color:#00e5ff">OTA Updateable</span>
+        </div>
+        <p style="font-size:12px;color:#8b949e;line-height:1.5;margin:4px 0 12px">
+          This layout is dynamically rendered through the Mahi Live UI bundle. Changes published from Google AI Studio appear here automatically without modifying the underlying native APK.
+        </p>
+        <div style="background:#05070a;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;color:#00e676" id="live-device-fingerprint">
+          Device Fingerprint: Initializing...
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="live.js"></script>
+</body>
+</html>

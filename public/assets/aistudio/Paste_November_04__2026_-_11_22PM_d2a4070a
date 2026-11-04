@@ -1,0 +1,1016 @@
+# MAHI REMOTE CONTROL — FINAL PRE-INSTALLATION AUDIT, HARDENING & RELEASE CANDIDATE
+
+## MISSION
+
+You are the Principal Software Architect, Senior Android Engineer, WebRTC Engineer, Backend Security Engineer, Release Engineer, and QA Lead responsible for preparing Mahi Remote Control for its first final installation on real Android devices.
+
+The current implementation has already undergone several development phases.
+
+Your task is to perform the FINAL engineering review, identify remaining defects, implement necessary fixes, validate the entire application, and prepare the final installable Android application.
+
+This is not a new feature-development phase.
+
+This is the final stabilization, integration, security-hardening, and release-preparation phase.
+
+Do not rebuild the application.
+
+Do not introduce unnecessary architectural changes.
+
+Preserve the existing working implementation and Obsidian Telemetry design system.
+
+Do not stop after providing recommendations. Make actual source-code fixes wherever the current Google AI Studio workspace permits.
+
+---
+
+# 1. PROJECT IDENTITY
+
+Product: Mahi Remote Control
+
+Google AI Studio workspace:
+
+https://ai.studio/apps/78a62340-cc3b-4bcb-8674-7f08cf3175be
+
+Current reported Applet ID:
+
+59c95a4e-7d35-471d-91e6-6ca0bfd52414
+
+Current reported Cloud Studio endpoint:
+
+https://ais-dev-4r5sh7f5y743hkp4umtssh-967365360779.asia-east1.run.app
+
+Current reported Android application ID:
+
+`com.aistudio.mahiremote.bqpjku`
+
+Current Windows LAN address:
+
+`192.168.1.105`
+
+Backend port:
+
+`8080`
+
+Current Browser Controller URL:
+
+`http://192.168.1.105:8080/`
+
+Current Live Update Publisher:
+
+`http://192.168.1.105:8080/publisher.html`
+
+Current architecture:
+
+- Android Kotlin / Jetpack Compose.
+- Unified Android Controller and Receiver.
+- MediaProjection.
+- AccessibilityService.
+- Native Android WebRTC.
+- Node.js / Express backend.
+- WebSocket signaling.
+- Browser WebRTC controller.
+- ECDSA-signed Live UI releases.
+- Windows Cloud-to-LAN sync agent.
+- Android live presentation WebView.
+- Secure native Android OTA.
+- Windows WPF controller.
+
+Inspect the actual current source and verify these identifiers before relying on them.
+
+---
+
+# 2. STRICT FINAL-PHASE RULES
+
+All development must remain inside the existing Google AI Studio workspace.
+
+Do not:
+
+- Push to GitHub.
+- Create Git commits.
+- Introduce a Git-based development requirement.
+- Publish the entire Google AI Studio application.
+- Deploy to Render or another new hosting provider.
+- Modify external production databases.
+- Delete working features.
+- Replace the existing application architecture.
+- Change the application ID unnecessarily.
+- Create fake success states.
+- Hide unimplemented functionality behind mock interfaces.
+
+You may inspect and modify the current project source.
+
+You may build, test, validate, and prepare release artifacts within the available environment.
+
+Do not claim physical Android testing unless it actually happened.
+
+---
+
+# 3. PHASE ONE — COMPLETE SOURCE AUDIT
+
+Inspect the entire current project again.
+
+Do not assume the previous 17-file change report is completely accurate.
+
+Verify the current implementations of:
+
+### Android
+
+- MainActivity.kt
+- AndroidManifest.xml
+- build.gradle.kts
+- libs.versions.toml
+- ScreenCaptureService.kt
+- WebRtcSessionManager.kt
+- MahiAccessibilityService.kt
+- MahiViewModel.kt
+- ControllerViewerScreen.kt
+- PairingManager.kt
+- PairingModels.kt
+- DeviceIdentity.kt
+- BackendConfig.kt
+- LiveUiManager.kt
+- LivePresentationContainer.kt
+- OtaUpdateManager.kt
+- BackendSettingsDialog.kt
+- network_security_config.xml
+- FileProvider configuration
+
+### Backend
+
+- backend/src/index.ts
+- backend/src/api/routes.ts
+- backend/src/signaling/SignalingHub.ts
+- backend/src/authentication/AuthService.ts
+- backend/src/device-management/DeviceService.ts
+- backend/src/release-management/UiReleaseService.ts
+- backend/src/release-management/OtaService.ts
+- backend/src/utils/network.ts
+
+### Browser
+
+- backend/public/index.html
+- backend/public/js/app.js
+- backend/public/js/publisher.js
+- backend/public/live/index.html
+- backend/public/live/live.js
+- backend/public/live/live.css
+- backend/scripts/publish-cloud.js
+- backend/scripts/sync-agent.js
+
+### Infrastructure
+
+- PostgreSQL schema.
+- Coturn configuration.
+- Environment configuration.
+- Docker configuration.
+- Backend package scripts.
+
+Verify every critical integration.
+
+Identify dead code, missing handlers, incorrect imports, incorrect dependency versions, missing resources, inconsistent configuration, and incomplete runtime paths.
+
+---
+
+# 4. PHASE TWO — COMPLETE BOTH REMOTE CONTROL MODES
+
+The final app must support two equally important modes.
+
+## MODE A — ANDROID PHONE → ANDROID PHONE
+
+Phone A acts as controller.
+
+Phone B acts as receiver.
+
+Required actual workflow:
+
+1. Phone B activates receiver mode.
+2. Phone B generates a secure six-digit pairing code.
+3. Phone A enters the code or scans QR.
+4. Backend validates the code.
+5. Phone B receives the request.
+6. Owner approves.
+7. Android MediaProjection consent is requested.
+8. Receiver screen capture starts.
+9. Android WebRTC sender creates an actual VideoTrack.
+10. Phone A establishes PeerConnection.
+11. Phone A receives actual video frames.
+12. Phone A can perform supported remote input.
+13. Phone B retains an immediate local stop option.
+
+## MODE B — BROWSER → ANDROID PHONE
+
+Browser acts as controller.
+
+Android acts as receiver.
+
+Required actual workflow:
+
+1. Browser opens the controller.
+2. Browser authenticates.
+3. User enters the receiver PIN.
+4. Receiver approves.
+5. MediaProjection permission is granted.
+6. WebRTC negotiation occurs.
+7. Browser receives an actual remote video track.
+8. `remoteVideo.srcObject` displays the stream.
+9. Pointer events are converted to valid receiver coordinates.
+10. DataChannel sends input commands.
+11. Receiver executes authorized interactions.
+12. Emergency disconnect works.
+
+One shared receiver architecture must support both modes.
+
+Do not implement one mode using genuine streaming and the other using a simulated canvas.
+
+---
+
+# 5. PHASE THREE — WEBRTC AND REAL VIDEO VALIDATION
+
+This is the highest-priority technical release gate.
+
+The previous report claims integration of:
+
+`io.getstream:stream-webrtc-android:1.1.1`
+
+Verify whether this exact dependency is actually present, compatible, and used.
+
+Check its API compatibility with the current Gradle and Kotlin versions.
+
+Do not change it merely to select a newer version if the existing version works.
+
+Verify the actual MediaProjection-to-WebRTC pipeline.
+
+Expected architecture:
+
+MediaProjection
+→ Full-device screen capture
+→ WebRTC screen capturer
+→ VideoSource
+→ VideoTrack
+→ PeerConnection
+→ STUN/TURN
+→ Android or Browser receiver.
+
+Verify:
+
+- PeerConnectionFactory.
+- EGL context.
+- SurfaceTextureHelper.
+- ScreenCapturerAndroid or equivalent.
+- VideoSource.
+- VideoTrack.
+- Sender track.
+- Receive-only controller transceiver.
+- SDP offer.
+- SDP answer.
+- ICE candidates.
+- ICE state.
+- DTLS connection.
+- Incoming remote video frames.
+- Video renderer.
+- DataChannel.
+- Resource cleanup.
+
+Confirm that the Android sender actually adds its screen VideoTrack to the PeerConnection.
+
+Confirm that the Android controller actually receives and renders remote frames.
+
+Confirm that the browser attaches the received track to:
+
+`remoteVideo.srcObject`
+
+Check whether the browser's canvas is only an interaction overlay or is incorrectly being used to simulate the receiver screen.
+
+Remove all production fake-video behavior and simulated active-stream indicators.
+
+A successful WebSocket SDP relay test does NOT prove that video streaming works.
+
+A successful compile does NOT prove that real video frames are transmitted.
+
+---
+
+# 6. PHASE FOUR — ORIGINAL ANDROID NAVIGATION AND FULL-DISPLAY CAPTURE
+
+This is a mandatory product requirement.
+
+The controller must display the actual complete Android receiver display.
+
+The stream must show:
+
+- Original receiver status bar.
+- Original battery and system indicators.
+- Original Android applications.
+- Original navigation bar.
+- Gesture navigation handle.
+- Three-button navigation.
+- Actual portrait or landscape orientation.
+
+Do not recreate the system UI manually.
+
+Do not add a separate Back/Home/Recents navigation toolbar.
+
+Do not draw a fake gesture navigation strip.
+
+Inspect the MediaProjection configuration carefully.
+
+For supported Android versions, use appropriate full-default-display capture configuration where required.
+
+Respect Android 14+ MediaProjection consent and VirtualDisplay lifecycle rules.
+
+Verify:
+
+- Projection consent.
+- Foreground service type.
+- ScreenCapturerAndroid lifecycle.
+- Display resizing.
+- Rotation.
+- Projection revocation.
+- Notification stop action.
+- Resource cleanup.
+
+Do not claim that the original navigation bar appears correctly without actual device evidence.
+
+---
+
+# 7. PHASE FIVE — REMOTE INPUT AND FULL CONTROL
+
+Inspect the actual MahiAccessibilityService.
+
+Verify:
+
+- Single tap.
+- Double tap.
+- Long press.
+- Swipe.
+- Scroll.
+- Drag.
+- Pinch where supported.
+- Text input.
+- Back.
+- Home.
+- Recents.
+- Notification shade.
+- Quick Settings.
+- Volume control.
+
+Coordinate mapping must use actual receiver display information.
+
+Validate:
+
+- Width.
+- Height.
+- Rotation.
+- Density.
+- Video dimensions.
+- Display aspect ratio.
+- Letterboxing.
+- Video content boundaries.
+- Coordinate normalization.
+
+Remove any remaining hardcoded 1080x1920 assumptions.
+
+Validate commands at the receiver.
+
+Use acknowledgements where appropriate.
+
+Do not silently report an input as successful if the AccessibilityService rejects it.
+
+Preserve Android security restrictions for protected screens, FLAG_SECURE content, and credential interfaces.
+
+The receiver owner must always retain control.
+
+---
+
+# 8. PHASE SIX — SECURITY HARDENING
+
+Review the recent AndroidKeyStore and ECDSA changes.
+
+## 8.1 Device identity
+
+Verify:
+
+- Genuine asymmetric key generation.
+- AndroidKeyStore-backed private key.
+- Public key extraction.
+- Correct fingerprint generation.
+- Real cryptographic signing.
+- Mathematical server-side signature verification.
+- Challenge-response.
+- Key registration.
+- Signature replay protection.
+
+Never accept signatures using length checks or simple string comparisons.
+
+## 8.2 Live UI signing
+
+The latest architecture uses ECDSA P-256 and a pinned public key.
+
+Verify:
+
+- Private signing key is never shipped to Android.
+- Public verification key matches the actual publisher.
+- Signature verification works.
+- Asset SHA-256 hashes are checked.
+- Modified bundles are rejected.
+- Old or replayed releases cannot bypass version policy.
+- Last-known-good UI remains available.
+
+The publisher private key must use persistent, owner-controlled secure storage.
+
+Do not store the only release-signing key in an ephemeral runtime filesystem.
+
+Do not expose it through publisher JavaScript or public APIs.
+
+## 8.3 WebSocket authentication
+
+Check:
+
+- Authenticated initial connection.
+- Token verification.
+- Device identity binding.
+- Approved session checks.
+- Sender and recipient checks.
+- Command scope.
+- Replay protection.
+- Rate limiting.
+- Secure session termination.
+
+Do not trust client-supplied identity headers.
+
+## 8.4 Sensitive command routing
+
+Verify that:
+
+- INPUT_EVENT.
+- FILE_COMMAND.
+- APP_COMMAND.
+- DIAGNOSTICS_RUN.
+- EMERGENCY_DISCONNECT.
+- SDP and ICE messages.
+
+are routed only to their authorized session participants.
+
+No unauthorized broadcast must be possible.
+
+## 8.5 TURN security
+
+Verify that Coturn shared secrets remain server-side.
+
+Use dynamic short-lived credentials.
+
+Ensure the ICE credential endpoint requires appropriate authentication and rate limiting.
+
+Never expose the shared TURN secret to the browser.
+
+---
+
+# 9. PHASE SEVEN — WINDOWS LAN CONFIGURATION
+
+My current Windows laptop:
+
+IPv4: `192.168.1.105`
+
+Subnet: `192.168.1.0/24`
+
+Gateway: `192.168.1.254`
+
+Backend port: `8080`
+
+Required development binding:
+
+HOST=0.0.0.0
+PORT=8080
+
+Expected URLs:
+
+Browser:
+`http://192.168.1.105:8080/`
+
+Publisher:
+`http://192.168.1.105:8080/publisher.html`
+
+Live UI:
+`http://192.168.1.105:8080/live/`
+
+Health:
+`http://192.168.1.105:8080/api/v1/health`
+
+WebSocket:
+`ws://192.168.1.105:8080/ws`
+
+Verify:
+
+- Dynamic IPv4 detection.
+- Network binding.
+- HTTP server.
+- WebSocket server.
+- Static assets.
+- API routes.
+- Publisher access.
+- Android backend settings.
+- Health endpoint.
+- LAN-compatible browser URL handling.
+
+Do not hardcode the current IP into permanent application logic.
+
+Restrict development cleartext traffic to appropriately scoped local development hosts.
+
+Production must use HTTPS and WSS.
+
+Provide exact Windows Firewall instructions for a Private network.
+
+Do not configure router port forwarding or unrestricted public access.
+
+---
+
+# 10. PHASE EIGHT — GOOGLE AI STUDIO TO WINDOWS LIVE UPDATE
+
+The intended workflow must remain:
+
+Google AI Studio UI modification
+→ Cloud release publishing
+→ Authenticated Windows sync agent
+→ Local Windows update backend
+→ Android and browser update notification
+→ Bundle download and verification
+→ Automatic UI activation.
+
+Verify the actual current Cloud Studio endpoint:
+
+`https://ais-dev-4r5sh7f5y743hkp4umtssh-967365360779.asia-east1.run.app`
+
+Do not assume it is a permanent production endpoint.
+
+Test whether the sync agent can really reach it.
+
+Inspect:
+
+- `backend/scripts/publish-cloud.js`
+- `backend/scripts/sync-agent.js`
+- `backend/package.json`
+- `UiReleaseService.ts`
+- `LiveUiManager.kt`
+- `LivePresentationContainer.kt`
+
+Verify:
+
+1. Google AI Studio can publish a real versioned bundle.
+2. The cloud endpoint serves the bundle.
+3. Windows sync-agent downloads it.
+4. ECDSA signature is checked.
+5. Asset hashes are checked.
+6. Windows local backend accepts the verified bundle.
+7. Local WebSocket sends UI_UPDATE_AVAILABLE.
+8. Android downloads the bundle.
+9. Android verifies the bundle.
+10. Android activates it.
+11. Browser receives the same version.
+12. Existing sessions remain stable.
+
+The actual Windows laptop must run the sync agent.
+
+The cloud workspace cannot directly reach private LAN addresses without an appropriate synchronization bridge.
+
+Do not claim automatic synchronization without testing the full chain.
+
+---
+
+# 11. PHASE NINE — LIVE UI SAFETY AND WEBVIEW
+
+Verify the hosted presentation layer.
+
+Inspect:
+
+- `backend/public/live/index.html`
+- `backend/public/live/live.js`
+- `backend/public/live/live.css`
+- `LivePresentationContainer.kt`
+
+Check:
+
+- Trusted origins.
+- Native bridge allowlist.
+- Input validation.
+- No arbitrary native method invocation.
+- No arbitrary shell access.
+- No insecure external navigation.
+- Offline fallback.
+- Cached last-known-good UI.
+- Atomic bundle replacement.
+- Update rollback.
+- Session preservation.
+
+Native MediaProjection, Accessibility, WebRTC, and Emergency Stop must remain independently available when the presentation server is offline.
+
+A presentation update must not restart active screen capture or terminate WebRTC.
+
+---
+
+# 12. PHASE TEN — NATIVE APK OTA AND SIGNING
+
+This is one of the most important pre-installation requirements.
+
+The current reported application ID is:
+
+`com.aistudio.mahiremote.bqpjku`
+
+Verify the real applicationId from Gradle.
+
+Do not change it again without a verified migration reason.
+
+## 12.1 Application signing
+
+Inspect the existing release-signing configuration.
+
+Verify:
+
+- Application ID.
+- Version code.
+- Version name.
+- APK signature.
+- Signing certificate fingerprint.
+- Existing release key continuity.
+- OTA package identity verification.
+
+A valid in-place update requires the same package identity and a compatible signing certificate.
+
+Do not generate a disposable signing key and call it the final production key.
+
+Do not expose the release keystore or password.
+
+If an owner-controlled persistent signing key is missing, document the exact one-time setup required.
+
+Build a test APK where possible, but do not falsely label a debug build as a production-signed release APK.
+
+## 12.2 Native OTA
+
+Inspect:
+
+- `OtaService.ts`
+- `OtaUpdateManager.kt`
+- `FileProvider`
+- `file_paths.xml`
+- `AndroidManifest.xml`
+
+Verify:
+
+- Authenticated APK publishing.
+- Correct package identity.
+- Version comparison.
+- SHA-256 integrity.
+- APK signer verification.
+- Secure download.
+- Download progress.
+- Installation permission.
+- Android PackageInstaller.
+- Data preservation.
+- Failure recovery.
+- Previous release history.
+
+Respect Android installation confirmation.
+
+Do not silently install APKs.
+
+Do not force uninstall/reinstall when a valid in-place update is possible.
+
+---
+
+# 13. PHASE ELEVEN — DATABASE AND INFRASTRUCTURE
+
+Inspect whether PostgreSQL is actually integrated.
+
+If the existing application still uses in-memory Maps for production session or device persistence, implement the necessary persistence using the existing SQL schema.
+
+Verify:
+
+- Connection pool.
+- Migrations.
+- Device records.
+- Public keys.
+- Pairing codes.
+- Session records.
+- Audit logs.
+- Expiration cleanup.
+- Atomic single-use PIN handling.
+- Error handling.
+
+Do not report a database as connected simply because the schema exists.
+
+Verify Coturn configuration and dynamic credentials.
+
+Production must not contain default development passwords.
+
+---
+
+# 14. PHASE TWELVE — FINAL BUILD AND RELEASE VALIDATION
+
+Run every available test from a clean validation state.
+
+## Android
+
+- Gradle compilation.
+- Debug build.
+- Release build, if signing configuration is available.
+- Unit tests.
+- Robolectric tests.
+- Manifest validation.
+- Dependency validation.
+- Live UI manager tests.
+- OTA version tests.
+- Package identity tests.
+- FileProvider validation.
+- WebView security tests.
+
+## Backend
+
+- TypeScript compilation.
+- npm integration tests.
+- WebSocket tests.
+- Authentication tests.
+- Pairing tests.
+- Session routing tests.
+- UI release tests.
+- ECDSA signature tests.
+- Manifest tampering tests.
+- OTA metadata tests.
+- Binary APK upload/download tests.
+- Rollback tests.
+- Sync-agent tests.
+
+## Browser
+
+- JavaScript syntax.
+- Static asset delivery.
+- API routing.
+- WebSocket connection.
+- SDP negotiation.
+- ICE handling.
+- Video ontrack.
+- remoteVideo.srcObject.
+- DataChannel input.
+- Fullscreen.
+- UI update activation.
+- Emergency disconnect.
+
+Fix all genuine build-breaking errors.
+
+Fix all critical runtime issues that can be reproduced.
+
+Do not rewrite working components unnecessarily.
+
+If the required testing environment is unavailable, clearly mark the test as NOT RUN.
+
+---
+
+# 15. FINAL APK PREPARATION
+
+Prepare the final installable Android artifact.
+
+Preferred output:
+
+`MahiRemote-Release-Candidate.apk`
+
+Also report:
+
+- Exact package ID.
+- Version name.
+- Version code.
+- APK size.
+- Signing status.
+- Certificate fingerprint.
+- SHA-256 checksum.
+- Minimum SDK.
+- Target SDK.
+- Installation requirements.
+
+If a valid persistent production signing key is available, prepare a signed release APK.
+
+If it is not available:
+
+- Do not invent a final production signing identity.
+- Produce a debug/test APK only if available.
+- Clearly identify the release-signing blocker.
+- Provide the exact one-time owner-controlled signing configuration required.
+
+Do not change the application ID simply to resolve a signing problem.
+
+Do not claim the APK is installable or OTA-compatible without checking its actual package and signing metadata.
+
+Provide the actual artifact in the workspace if downloadable artifact generation is supported.
+
+Do not claim that a file was generated unless it exists.
+
+---
+
+# 16. PHYSICAL DEVICE ACCEPTANCE CHECKLIST
+
+The cloud workspace cannot independently certify physical Android hardware functionality.
+
+Prepare an exact physical test sequence.
+
+### Test A — Android Controller to Android Receiver
+
+Install the same compatible APK on two phones.
+
+Phone B generates a pairing PIN.
+
+Phone A enters the PIN.
+
+Phone B approves.
+
+Phone B grants MediaProjection permission.
+
+Phone A receives genuine video.
+
+Verify:
+
+- Status bar.
+- Navigation bar.
+- Gesture handle.
+- Original receiver interface.
+- Real-time updates.
+- Tap.
+- Double tap.
+- Swipe.
+- Drag.
+- Scroll.
+- Back.
+- Home.
+- Recents.
+- Portrait.
+- Landscape.
+- Emergency Stop.
+
+### Test B — Browser Controller to Android Receiver
+
+Open:
+
+`http://192.168.1.105:8080/`
+
+Enter the receiver PIN.
+
+Approve on Android.
+
+Verify actual video frames.
+
+Test:
+
+- Chrome.
+- Edge.
+- Fullscreen.
+- Mouse input.
+- Touch input where supported.
+- Keyboard input.
+- System navigation.
+- Network interruption.
+- Reconnection.
+- Emergency Stop.
+
+### Test C — Live UI Update
+
+Modify an easily identifiable dashboard label in Google AI Studio.
+
+Publish a new UI release.
+
+Run the Windows sync agent.
+
+Verify that the installed Android application shows the changed label without APK reinstallation.
+
+Verify the browser also receives the new version.
+
+### Test D — Native OTA
+
+Publish a compatible signed APK.
+
+Confirm:
+
+- Update detection.
+- Correct package ID.
+- Correct signer.
+- SHA-256 match.
+- Official installation confirmation.
+- Existing app data preserved.
+- Application opens after update.
+
+### Test E — Offline Recovery
+
+Stop the local backend.
+
+Verify:
+
+- Last-known-good UI remains available.
+- Android application does not crash.
+- Local emergency stop remains available.
+- Active session cleanup works correctly.
+
+---
+
+# 17. FINAL BUG FIX POLICY
+
+During this phase:
+
+- Fix confirmed P0 issues.
+- Fix security vulnerabilities.
+- Fix broken integrations.
+- Fix incorrect configuration.
+- Fix build errors.
+- Fix OTA installation problems.
+- Fix LAN connectivity bugs.
+- Fix fake status or success behavior.
+- Fix inconsistent application identity.
+- Fix duplicate navigation UI.
+- Fix actual UI regressions.
+
+Do not add unrelated features.
+
+Do not perform a broad visual redesign.
+
+Do not introduce unnecessary dependencies.
+
+Do not sacrifice existing working functionality.
+
+Keep the Obsidian Telemetry design consistent.
+
+---
+
+# 18. REQUIRED FINAL REPORT
+
+Provide a truthful final pre-installation report.
+
+Include:
+
+1. Executive summary.
+2. Current application architecture.
+3. Files modified during final fixes.
+4. Confirmed issues found.
+5. Issues fixed.
+6. Issues that remain.
+7. Android WebRTC status.
+8. Full-display capture status.
+9. Original navigation status.
+10. Remote input status.
+11. Browser controller status.
+12. LAN backend status.
+13. Live UI publishing status.
+14. Windows sync-agent status.
+15. Android OTA status.
+16. Package ID.
+17. Signing certificate.
+18. APK version.
+19. APK size and checksum.
+20. Build results.
+21. Test results.
+22. Physical verification checklist.
+23. Final installation instructions.
+
+Use these statuses:
+
+- PASS — AUTOMATED TESTED.
+- IMPLEMENTED — PHYSICAL TEST REQUIRED.
+- PARTIALLY IMPLEMENTED.
+- FAIL — FIX REQUIRED.
+- BLOCKED — EXTERNAL SETUP REQUIRED.
+- NOT RUN.
+
+Clearly distinguish actual code verification, automated tests, browser preview, and physical Android tests.
+
+Do not invent successful device testing.
+
+---
+
+# 19. STRICT FINAL RELEASE RULE
+
+Do not tell me to install the final application until you have completed the available source-level fixes and validation.
+
+If a critical defect remains, identify it and explain whether it blocks installation.
+
+If only a physical-device test remains, prepare the release candidate and label it correctly.
+
+Do not automatically publish or deploy.
+
+Do not Git push.
+
+Do not modify external hosting.
+
+Do not expose secrets.
+
+Keep all development inside the current Google AI Studio workspace.
+
+---
+
+# START FINAL PRE-INSTALLATION REVIEW
+
+Inspect the current source revision.
+
+Reconcile all previous implementation changes.
+
+Identify every remaining issue that could affect installation, first launch, pairing, remote streaming, input control, security, Live UI updates, OTA, or Windows LAN access.
+
+Fix everything that can be safely and genuinely fixed inside the available workspace.
+
+Build the strongest possible release candidate.
+
+Prepare the actual APK where the workspace supports it.
+
+Provide the final evidence-based installation report.
+
+**FINAL GOAL: A stable, secure, correctly signed, installable Mahi Remote Control application with two controller modes, genuine remote video and input, native receiver navigation, Windows LAN browser access, live UI updates, and secure native OTA — without unnecessary redesign or broken existing features.**

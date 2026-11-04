@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mahi Remote — Live Update Publisher</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body {
+      background: var(--bg-dark, #0d1117);
+      color: var(--text-primary, #f0f6fc);
+      font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    .pub-container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+    .pub-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-dark, #30363d);
+      margin-bottom: 28px;
+    }
+    .pub-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pub-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: rgba(0, 229, 255, 0.12);
+      color: var(--cyan-accent, #00e5ff);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+    }
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--surface-dark, #161b22);
+      border: 1px solid var(--border-dark, #30363d);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary, #8b949e);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary, #f0f6fc);
+      margin: 8px 0 4px;
+      font-family: var(--font-mono, monospace);
+    }
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-secondary, #8b949e);
+    }
+    .pub-section {
+      background: var(--surface-dark, #161b22);
+      border: 1px solid var(--border-dark, #30363d);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .pub-section h2 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary, #8b949e);
+      margin-bottom: 6px;
+    }
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      background: var(--bg-dark, #0d1117);
+      border: 1px solid var(--border-dark, #30363d);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text-primary, #f0f6fc);
+      font-family: inherit;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--cyan-accent, #00e5ff);
+    }
+    .checkbox-group {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary, #8b949e);
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 20px;
+    }
+    .btn-publish {
+      background: var(--cyan-accent, #00e5ff);
+      color: #0d1117;
+      font-weight: 700;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: opacity 0.15s;
+    }
+    .btn-publish:hover { opacity: 0.9; }
+    .btn-rollback {
+      background: transparent;
+      color: var(--warning-amber, #fbbf24);
+      border: 1px solid var(--warning-amber, #fbbf24);
+      padding: 10px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn-rollback:hover { background: rgba(251, 191, 36, 0.1); }
+    .table-responsive {
+      overflow-x: auto;
+    }
+    table.history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    table.history-table th {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-dark, #30363d);
+      color: var(--text-secondary, #8b949e);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    table.history-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border-dark, #30363d);
+      vertical-align: middle;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .status-active { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.3); }
+    .status-archived { background: rgba(139, 148, 158, 0.15); color: #8b949e; }
+    .log-box {
+      background: #05070a;
+      border: 1px solid var(--border-dark, #30363d);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: var(--font-mono, monospace);
+      font-size: 11px;
+      color: #00e676;
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="pub-container">
+    <header class="pub-header">
+      <div class="pub-brand">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--cyan-accent, #00e5ff)" stroke-width="2">
+          <path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        <div>
+          <h1 style="margin:0;font-size:18px;font-weight:700;letter-spacing:1px">MAHI REMOTE — LIVE UPDATE PUBLISHER</h1>
+          <span style="font-size:12px;color:var(--text-secondary,#8b949e)">Google AI Studio Workspace Release Channel</span>
+        </div>
+      </div>
+      <div>
+        <span class="pub-badge" id="channel-badge"><i class="dot" style="width:6px;height:6px;border-radius:50%;background:#00e676"></i> Direct LAN & AI Studio Channel</span>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <div class="grid3">
+      <div class="kpi-card">
+        <div class="kpi-title">Current Active UI Release</div>
+        <div class="kpi-value" id="kpi-version">v1.0.0</div>
+        <div class="kpi-sub" id="kpi-build">Build: MAHI-BUILD-OBSIDIAN-100</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">Connected Devices Presence</div>
+        <div class="kpi-value" id="kpi-devices">0</div>
+        <div class="kpi-sub">Registered Android Phones & Controllers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">Distribution Security</div>
+        <div class="kpi-value" style="font-size:18px;color:#00e676">HMAC-SHA256</div>
+        <div class="kpi-sub">Checksums & Manifests Digitally Signed</div>
+      </div>
+    </div>
+
+    <!-- Publishing Form -->
+    <section class="pub-section">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Publish Live UI Update (Type A — No APK Reinstall)
+      </h2>
+      <p style="font-size:12px;color:var(--text-secondary,#8b949e);margin-top:0">
+        Changes deployed through this channel are verified by installed Android phones and updated instantly without USB cable or reinstallation.
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="rel-version">Target Semantic Version</label>
+          <input type="text" id="rel-version" class="form-input" value="1.1.0" placeholder="1.1.0">
+        </div>
+        <div class="form-group">
+          <label for="rel-build">Build Identifier</label>
+          <input type="text" id="rel-build" class="form-input" value="MAHI-BUILD-20261104-02" placeholder="MAHI-BUILD-...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="rel-notes">Release Notes & Change Manifest</label>
+        <textarea id="rel-notes" class="form-textarea" rows="3" placeholder="Describe layout, color, diagnostics, or pairing improvements...">Updated Obsidian Telemetry presentation, optimized real-time latency graphs, refreshed dark charcoal contrast and pairing feedback.</textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Updated Presentation Components</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" checked value="Dashboard"> Dashboard & Telemetry</label>
+          <label class="checkbox-item"><input type="checkbox" checked value="Pairing"> Pairing Presentation</label>
+          <label class="checkbox-item"><input type="checkbox" checked value="Diagnostics"> Diagnostics Gauges</label>
+          <label class="checkbox-item"><input type="checkbox" checked value="Files"> File Transfer UI</label>
+          <label class="checkbox-item"><input type="checkbox" checked value="Apps"> App Manager UI</label>
+          <label class="checkbox-item"><input type="checkbox" checked value="Settings"> Settings & Network</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="admin-key">Admin Authorization Key</label>
+        <input type="password" id="admin-key" class="form-input" value="mahi-admin-secret-2026" placeholder="Admin Secret Key">
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-publish" id="btn-publish-ui">Publish Live UI Update</button>
+        <button class="btn-rollback" id="btn-rollback-ui">Rollback to Previous UI</button>
+        <span id="publish-status" style="font-size:12px;font-weight:600;margin-left:12px"></span>
+      </div>
+    </section>
+
+    <!-- Audit & History Table -->
+    <section class="pub-section">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Live Release History & Rollback Targets
+      </h2>
+      <div class="table-responsive">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Build ID</th>
+              <th>Status</th>
+              <th>Release Notes</th>
+              <th>SHA-256 Checksum</th>
+              <th>Timestamp</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-secondary,#8b949e)">Loading release history...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Release Audit Console -->
+    <section class="pub-section">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        Release Pipeline Telemetry Log
+      </h2>
+      <div class="log-box" id="log-console">[SYSTEM] Live Release Pipeline initialized. Connected to local distribution hub.</div>
+    </section>
+  </div>
+
+  <script src="js/publisher.js"></script>
+</body>
+</html>

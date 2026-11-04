@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mahi Remote Control</title>
+<link rel="stylesheet" href="css/tokens.css"><link rel="stylesheet" href="css/base.css"><link rel="stylesheet" href="css/components.css">
+</head><body>
+<main class="pair" id="pair"><section class="card pair-card" aria-labelledby="t">
+<div class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+<h1 id="t">Connect to your phone</h1>
+<p>Enter the 6-digit code shown in the Mahi app on your Android device.</p>
+<div class="code" role="group" aria-label="Pairing code"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1" autofocus><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 2"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 3"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 4"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 5"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 6"></div>
+<div class="status" id="pair-status" role="status" aria-live="polite"></div>
+<button class="btn primary" id="connect">Connect</button>
+<div class="trust"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg> End-to-end encrypted. Your phone asks for approval first.</div>
+</section></main>
+
+<div class="app" id="app" hidden>
+<header class="topbar">
+ <div class="device"><span class="logo" style="width:32px;height:32px;margin:0;border-radius:9px"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span><div>Pixel 8 Pro<small>Android 15 · Paired</small></div></div>
+ <span class="chip"><i class="dot"></i>Excellent · 38 ms</span>
+ <span class="chip hide-sm mono" title="Session duration" id="dur">00:00:00</span>
+ <span class="chip hide-sm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Encrypted</span>
+ <div class="spacer"></div>
+ <button class="btn danger" data-stop title="Ctrl+Shift+X"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 7a8 8 0 1011.4 0"/></svg>Emergency stop</button>
+</header>
+<div class="workspace">
+ <section class="stage" data-state="loading" aria-label="Live phone screen">
+  <div class="screen"><canvas id="screen" aria-label="Phone screen. Click to tap."></canvas>
+   <div class="overlay" id="ov-loading"><div class="spinner"></div><h2>Starting video</h2><p>Negotiating a secure connection with your phone.</p></div>
+   <div class="overlay" id="ov-error"><div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.01"/></svg></div><h2>Stream interrupted</h2><p>The connection dropped. Keep the phone awake and on the same network, then retry.</p><button class="btn primary" id="retry">Reconnect</button></div>
+   <div class="overlay" id="ov-empty"><div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><h2>Phone screen is off</h2><p>Wake the device, or approve screen capture in the Mahi app.</p><button class="btn" data-toast="Wake request sent">Wake phone</button></div>
+  </div>
+  <div class="coords mono" id="coords" aria-hidden="true">x 0.000  y 0.000</div>
+  <nav class="dock" aria-label="Controls">
+   <button class="icon-btn" aria-label="Back" data-toast="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+   <button class="icon-btn" aria-label="Home" data-toast="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg></button>
+   <button class="icon-btn" aria-label="Recents" data-toast="Recents"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg></button>
+   <button class="icon-btn" aria-label="Screenshot" data-toast="Screenshot saved"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+   <span class="sep"></span>
+   <button class="btn" data-open="files" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span class="lbl">Files</span></button>
+   <button class="btn" data-open="diag" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span class="lbl">Diagnostics</span></button>
+   <button class="btn" data-open="apps" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg><span class="lbl">Apps</span></button>
+   <button class="icon-btn" data-open="settings" aria-label="Session settings" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+  </nav>
+ </section>
+ <aside class="drawer" id="drawer" aria-label="Tools"><div class="drawer-in">
+  <div class="drawer-head"><h2>Tools</h2><button class="icon-btn" id="close-drawer" aria-label="Close panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="tabs" role="tablist">
+   <button class="tab" role="tab" data-panel="files">Files</button><button class="tab" role="tab" data-panel="diag">Diagnostics</button><button class="tab" role="tab" data-panel="apps">Apps</button><button class="tab" role="tab" data-panel="settings">Settings</button>
+  </div>
+  <div class="panel" id="p-files"><div class="crumbs"><b>Internal storage</b>/<b>Pictures</b></div><ul class="list"><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div><div class="meta"><b>Camera</b><span>14 items · Today, 09:41</span></div><button class="icon-btn" aria-label="Download Camera" data-toast="Download queued: Camera"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div><div class="meta"><b>Downloads</b><span>32 items · Yesterday</span></div><button class="icon-btn" aria-label="Download Downloads" data-toast="Download queued: Downloads"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div><div class="meta"><b>Documents</b><span>8 items · Mon</span></div><button class="icon-btn" aria-label="Download Documents" data-toast="Download queued: Documents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/></svg></div><div class="meta"><b>IMG_2041.jpg</b><span>3.2 MB · Today</span></div><button class="icon-btn" aria-label="Download IMG_2041.jpg" data-toast="Download queued: IMG_2041.jpg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/></svg></div><div class="meta"><b>boarding-pass.pdf</b><span>212 KB · Sun</span></div><button class="icon-btn" aria-label="Download boarding-pass.pdf" data-toast="Download queued: boarding-pass.pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/></svg></div><div class="meta"><b>notes.txt</b><span>4 KB · Oct 28</span></div><button class="icon-btn" aria-label="Download notes.txt" data-toast="Download queued: notes.txt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg></button></li></ul></div>
+  <div class="panel" id="p-diag" hidden>
+   <div class="grid2"><div class="card stat"><span>Battery</span><b>78%</b><div class="bar"><i style="width:78%"></i></div></div><div class="card stat"><span>Storage</span><b>64 GB free</b><div class="bar"><i style="width:50%"></i></div></div>
+   <div class="card stat"><span>Memory</span><b>3.1 / 8 GB</b><div class="bar"><i style="width:39%"></i></div></div><div class="card stat"><span>Temperature</span><b>34 °C</b><div class="bar"><i style="width:30%"></i></div></div></div>
+   <ul class="list"><li class="row"><div class="meta"><b>Latency</b><span>Round trip to phone</span></div><span class="mono">38 ms</span></li><li class="row"><div class="meta"><b>Frame rate</b><span>Incoming video</span></div><span class="mono">58 fps</span></li><li class="row"><div class="meta"><b>Bitrate</b><span>Adaptive</span></div><span class="mono">6.4 Mbps</span></li><li class="row"><div class="meta"><b>Connection</b><span>Direct peer-to-peer</span></div><span class="chip"><i class="dot"></i>Secure</span></li></ul></div>
+  <div class="panel" id="p-apps" hidden><input class="search" id="search" type="search" placeholder="Search installed apps" aria-label="Search installed apps"><ul class="list" id="app-list"><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><div class="meta"><b>Chrome</b><span>v128.0 · 312 MB</span></div><button class="btn" data-toast="Opening Chrome on phone">Open</button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><div class="meta"><b>Messages</b><span>v9.4 · 88 MB</span></div><button class="btn" data-toast="Opening Messages on phone">Open</button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><div class="meta"><b>Maps</b><span>v11.2 · 204 MB</span></div><button class="btn" data-toast="Opening Maps on phone">Open</button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><div class="meta"><b>Photos</b><span>v7.1 · 410 MB</span></div><button class="btn" data-toast="Opening Photos on phone">Open</button></li><li class="row"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><div class="meta"><b>Mahi Companion</b><span>v1.0 · 24 MB</span></div><button class="btn" data-toast="Opening Mahi Companion on phone">Open</button></li></ul></div>
+  <div class="panel" id="p-settings" hidden>
+   <div class="setting"><div><b>Video quality</b><span>Lower it on slow networks</span></div><select aria-label="Video quality"><option>Auto</option><option>High</option><option>Balanced</option><option>Low</option></select></div>
+   <div class="setting"><div><b>Show touch ripples</b><span>Visual feedback on tap</span></div><input class="switch" type="checkbox" role="switch" checked aria-label="Show touch ripples"></div>
+   <div class="setting"><div><b>Keep phone awake</b><span>Prevent screen timeout</span></div><input class="switch" type="checkbox" role="switch" checked aria-label="Keep phone awake"></div>
+   <div class="setting"><div><b>Block clipboard sync</b><span>Stop copy and paste between devices</span></div><input class="switch" type="checkbox" role="switch" aria-label="Block clipboard sync"></div>
+   <div class="setting"><div><b>Preview screen state</b><span>For design review only</span></div><select id="state-select" aria-label="Preview screen state"><option value="live">Live</option><option value="loading">Loading</option><option value="error">Error</option><option value="empty">Screen off</option></select></div>
+   <button class="btn danger" style="width:100%;margin-top:20px" data-stop>End session</button></div>
+ </div></aside>
+</div></div>
+
+<div class="modal" id="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="mt"><div class="card"><h2 id="mt">Stop remote control?</h2><p>This ends the session right away and your phone will no longer accept input. You can pair again with a new code.</p><div class="acts"><button class="btn" id="cancel">Keep connected</button><button class="btn danger" id="confirm">Stop session</button></div></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="js/app.js"></script>
+</body></html>

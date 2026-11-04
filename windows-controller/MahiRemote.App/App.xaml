@@ -1,0 +1,16 @@
+<Application x:Class="MahiRemote.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="BgDark" Color="#0D1117" />
+        <SolidColorBrush x:Key="SurfaceDark" Color="#161B22" />
+        <SolidColorBrush x:Key="SurfaceElevated" Color="#21262D" />
+        <SolidColorBrush x:Key="BorderDark" Color="#30363D" />
+        <SolidColorBrush x:Key="CyanAccent" Color="#00E5FF" />
+        <SolidColorBrush x:Key="MintAccent" Color="#00E676" />
+        <SolidColorBrush x:Key="ErrorCoral" Color="#F87171" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#F0F6FC" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#8B949E" />
+    </Application.Resources>
+</Application>

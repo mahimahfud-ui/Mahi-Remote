@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  signaling-backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: mahi-signaling-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://mahi_admin:SecureMahiPass2026@postgres-db:5432/mahi_remote
+      - JWT_SECRET=mahi-remote-production-ecdsa-jwt-secret-key-32b
+      - TURN_SERVER_URL=turn:turn.mahi-remote.cloud:3478
+      - TURN_SECRET=mahi-turn-shared-secret-auth-key
+    depends_on:
+      - postgres-db
+    restart: always
+
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: mahi-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=mahi_admin
+      - POSTGRES_PASSWORD=SecureMahiPass2026
+      - POSTGRES_DB=mahi_remote
+    volumes:
+      - mahi-postgres-data:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: always
+
+  coturn-server:
+    image: coturn/coturn:latest
+    container_name: mahi-coturn
+    network_mode: "host"
+    volumes:
+      - ./coturn.conf:/etc/coturn/turnserver.conf:ro
+    restart: always
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mahi-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: always
+
+volumes:
+  mahi-postgres-data:

@@ -1,0 +1,118 @@
+{
+  "activeVersion": "1.0.0",
+  "updatedAt": "2026-11-04T17:15:00.463Z",
+  "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC84cOEUyeWmKqIb/p+ZScx1hYke5\nRO+qVVsv10l0UgnVCG8mpDWqvSpthM/qrIky6qder+orP6cmHSm8IQ2CLg==\n-----END PUBLIC KEY-----\n",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "buildId": "MAHI-BUILD-OBSIDIAN-100",
+      "releaseDate": "2026-11-04T17:12:07.536Z",
+      "minNativeAppVersion": "1.0",
+      "compatibleApiVersion": "v1",
+      "releaseNotes": "Baseline Obsidian Telemetry Live Presentation layer with adaptive diagnostics, pairing, file transfer, and app manager.",
+      "bundleUrl": "/api/v1/ui-releases/1.0.0/bundle",
+      "assets": [
+        {
+          "path": "live/index.html",
+          "sha256": "e9927922c8f1f1858702767caa2d281d0692d4ce667afc94cfe6fe79144ac3a9",
+          "size": 4096
+        },
+        {
+          "path": "live/live.css",
+          "sha256": "f5e400ca09c97d7bdf7b0c8f424011e10c842d1df9f6ca8e8ade0486cfa394e3",
+          "size": 8192
+        },
+        {
+          "path": "live/live.js",
+          "sha256": "f3556604ac77c55636a3de263e2632acd618e27e770e6f4a4e1de327a58969be",
+          "size": 16384
+        }
+      ],
+      "rollbackRef": null,
+      "isMandatory": false,
+      "componentsUpdated": [
+        "Dashboard",
+        "Pairing",
+        "Diagnostics",
+        "Files",
+        "Apps",
+        "Settings"
+      ],
+      "checksumSha256": "6630d5159aa3e56aa8386449ba2bfd4f99474ae314ad498cf4551d5ac60a3d0e",
+      "signature": "MEUCIQDNwa2G1mOeVWW3kwUZEWmj46bCdP8T8/Vvhr8cZD9e4QIgWO5AsWNbcDSiy9DVo6hjtts80Trps3WeouM1ZvvA/EA=",
+      "signingAlgorithm": "SHA256withECDSA"
+    },
+    {
+      "version": "1.2.0",
+      "buildId": "MAHI-TEST-BUILD-120",
+      "releaseDate": "2026-11-04T17:15:00.456Z",
+      "minNativeAppVersion": "1.0",
+      "compatibleApiVersion": "v1",
+      "releaseNotes": "Telemetry refresh and responsive design overhaul.",
+      "bundleUrl": "/api/v1/ui-releases/1.2.0/bundle",
+      "assets": [
+        {
+          "path": "live/index.html",
+          "sha256": "c874a0ed6837d3aa844a268bda09f9ab2741dbe973b57adc3e7fdf9926219a7c",
+          "size": 5120
+        },
+        {
+          "path": "live/live.css",
+          "sha256": "803c9af195d6a7f3d5ba8cd2c736e7b7356c15fa0d9d3b2bd05e2ba94f48c234",
+          "size": 10240
+        },
+        {
+          "path": "live/live.js",
+          "sha256": "c730dab77340f1002e878ee5ef2d6a0f5cc50a03f4cec0cdc517fbc72997fe60",
+          "size": 20480
+        }
+      ],
+      "rollbackRef": "1.1.0",
+      "isMandatory": false,
+      "componentsUpdated": [
+        "Dashboard",
+        "Diagnostics"
+      ],
+      "checksumSha256": "9e43953434fc73014881324d5e2ae4f4449f2f7b28ef3e86c9208d5ddae29677",
+      "signature": "MEYCIQD9i5RNdGsXU4BaABbSOgXow4E5YNuneBVNG8Drb+VOTAIhAIWSn1qWhGH22Dbb4pG7uwUxJdVqQJoILsPpLFFzn7+J",
+      "signingAlgorithm": "SHA256withECDSA"
+    },
+    {
+      "version": "1.1.0",
+      "buildId": "MAHI-BUILD-MW2DN8UF",
+      "releaseDate": "2026-11-04T17:14:56.775Z",
+      "minNativeAppVersion": "1.0",
+      "compatibleApiVersion": "v1",
+      "releaseNotes": "Final gap closure: Asymmetric ECDSA signing and real WebRTC signaling pipeline",
+      "bundleUrl": "/api/v1/ui-releases/1.1.0/bundle",
+      "assets": [
+        {
+          "path": "live/index.html",
+          "sha256": "3ad9f4b973c3fc021fe191fd90fbcdcd2ccdca6a33f6628effc286c54aa603c6",
+          "size": 5608
+        },
+        {
+          "path": "live/live.css",
+          "sha256": "3697d3e5056e1bb7096d3f621f8cd15865c76dd095215ab7996e94bb9c2ee1d2",
+          "size": 3576
+        },
+        {
+          "path": "live/live.js",
+          "sha256": "cddb89eca04f1b2df93f0eb3abe9d9f204d46948d95dca259793ec4c9ab7ba97",
+          "size": 3895
+        }
+      ],
+      "rollbackRef": "1.0.0",
+      "isMandatory": false,
+      "componentsUpdated": [
+        "Dashboard",
+        "Diagnostics",
+        "Controls",
+        "LiveUI"
+      ],
+      "checksumSha256": "fa51b27570d3bc2e8976955a5db8582c0fa270c537c5a6674fc42d272e74eb3b",
+      "signature": "MEUCIBFmafMPNAhhkSkHRE0/0mUA9TiOrXPnpubmRXBKz8yuAiEAxF75yor6JDmjbr6jNXF2aSAnaeEnb2awMo7mQ2UrKpA=",
+      "signingAlgorithm": "SHA256withECDSA"
+    }
+  ]
+}

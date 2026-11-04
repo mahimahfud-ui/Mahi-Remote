@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'mahi-signaling'
+    static_configs:
+      - targets: ['signaling-backend:8080']
+  - job_name: 'coturn-turn'
+    static_configs:
+      - targets: ['coturn-server:9641']
