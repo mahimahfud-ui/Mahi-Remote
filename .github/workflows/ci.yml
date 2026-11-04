@@ -40,13 +40,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # This repository has wrapper properties but no gradlew script/JAR.
+      # Install the exact Gradle distribution declared by gradle-wrapper.properties.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
       - name: Build and test Android app
         env:
           MAHI_UI_RELEASE_PUBLIC_KEY_BASE64: ''
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
   windows:
     name: Windows controller build
