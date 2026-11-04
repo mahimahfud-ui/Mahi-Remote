@@ -87,30 +87,36 @@ class PairingManager(private val context: Context) {
             controllerFingerprint = request.controllerFingerprint,
             startedAtMillis = System.currentTimeMillis(),
             isScreenStreaming = false,
-            isInputEnabled = true
+            isInputEnabled = request.requestedScopes.contains("Remote Interaction")
         )
         _activeSession.value = session
         _pendingRequest.value = null
 
-        // Add or update trusted controller
-        val existing = _trustedControllers.value.find { it.fingerprint == request.controllerFingerprint }
-        val updatedList = if (existing != null) {
-            _trustedControllers.value.map {
-                if (it.fingerprint == request.controllerFingerprint) {
-                    it.copy(lastConnectedAtMillis = System.currentTimeMillis(), isRevoked = false)
-                } else it
+        // Only cryptographically identified Android controllers are retained
+        // as trusted devices. Browser/other ephemeral sessions remain session-only.
+        val verifiedFingerprint = request.controllerFingerprint.matches(
+            Regex("([A-Fa-f0-9]{2}:){23}[A-Fa-f0-9]{2}")
+        )
+        if (verifiedFingerprint) {
+            val existing = _trustedControllers.value.find { it.fingerprint == request.controllerFingerprint }
+            val updatedList = if (existing != null) {
+                _trustedControllers.value.map {
+                    if (it.fingerprint == request.controllerFingerprint) {
+                        it.copy(lastConnectedAtMillis = System.currentTimeMillis(), isRevoked = false)
+                    } else it
+                }
+            } else {
+                _trustedControllers.value + TrustedController(
+                    id = "ctrl_" + UUID.randomUUID().toString().take(8),
+                    name = request.operatorName,
+                    location = request.operatorLocation,
+                    fingerprint = request.controllerFingerprint,
+                    pairedAtMillis = System.currentTimeMillis(),
+                    lastConnectedAtMillis = System.currentTimeMillis()
+                )
             }
-        } else {
-            _trustedControllers.value + TrustedController(
-                id = "ctrl_" + UUID.randomUUID().toString().take(8),
-                name = request.operatorName,
-                location = request.operatorLocation,
-                fingerprint = request.controllerFingerprint,
-                pairedAtMillis = System.currentTimeMillis(),
-                lastConnectedAtMillis = System.currentTimeMillis()
-            )
+            _trustedControllers.value = updatedList
         }
-        _trustedControllers.value = updatedList
 
         AuditLogger.log("SESSION", "ESTABLISHED", "Session ${session.sessionId.take(8)} authorized for ${request.operatorName}", AuditSeverity.SECURITY)
     }
