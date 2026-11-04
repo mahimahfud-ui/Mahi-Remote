@@ -8,8 +8,20 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+fun readDotEnvValue(key: String): String? {
+  val candidates = listOf(rootProject.file(".env"), rootProject.file("backend/.env"))
+  for (envFile in candidates) {
+    if (!envFile.isFile) continue
+    val prefix = "$key="
+    val line = envFile.readLines().firstOrNull { it.trim().startsWith(prefix) } ?: continue
+    return line.trim().removePrefix(prefix).trim().trim('"', '\\'')
+  }
+  return null
+}
+
 val mahiUiReleasePublicKeyBase64 = providers.gradleProperty("mahiUiReleasePublicKeyBase64")
   .orElse(providers.environmentVariable("MAHI_UI_RELEASE_PUBLIC_KEY_BASE64"))
+  .orElse(providers.provider { readDotEnvValue("MAHI_UI_RELEASE_PUBLIC_KEY_BASE64") ?: "" })
   .getOrElse("")
 
 android {
