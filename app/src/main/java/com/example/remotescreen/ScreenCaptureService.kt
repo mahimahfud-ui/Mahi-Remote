@@ -203,11 +203,9 @@ class ScreenCaptureService : Service() {
             webRtcManager = com.example.webrtc.WebRtcSessionManager(
                 context = this,
                 onCaptureStopped = {
-                    projectionActive = false
-                    peerConnectionReady = false
-                    synchronized(pendingSignalLock) { pendingSignals.clear() }
+                    notifySessionEndedIfActive()
                     _streamState.value = ScreenStreamState.Stopped
-                    AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission", AuditSeverity.WARNING)
+                    AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission; remote session was terminated", AuditSeverity.WARNING)
                 },
                 onSignalingMessage = { type, payload ->
                     onWebRtcSignalGenerated?.invoke(type, payload)
@@ -292,12 +290,20 @@ class ScreenCaptureService : Service() {
     }
 
 
-    private fun stopCapture() {
+    private fun notifySessionEndedIfActive() {
+        if (!projectionActive) return
+        // Remove the server-side approved pair before the peer can continue to
+        // deliver remote input after the receiver has stopped sharing.
+        onWebRtcSignalGenerated?.invoke("EMERGENCY_DISCONNECT", "{}")
         projectionActive = false
         peerConnectionReady = false
         synchronized(pendingSignalLock) {
             pendingSignals.clear()
         }
+    }
+
+    private fun stopCapture() {
+        notifySessionEndedIfActive()
         try {
             webRtcManager?.close()
             webRtcManager = null
