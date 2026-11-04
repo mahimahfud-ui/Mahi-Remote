@@ -1,6 +1,7 @@
 package com.example.liveui
 
 import android.content.Context
+import com.example.BuildConfig
 import android.util.Base64
 import com.example.network.BackendConfig
 import com.example.remotescreen.ScreenCaptureService
@@ -29,10 +30,8 @@ class LiveUiManager(
     private val backendConfig: BackendConfig
 ) {
     companion object {
-        // Pinned ECDSA P-256 (prime256v1) Public Key for asymmetric release verification
-        // The corresponding private key is kept exclusively in the secure publishing environment.
-        const val PINNED_PUBLIC_KEY_BASE64 =
-            "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC84cOEUyeWmKqIb/p+ZScx1hYke5RO+qVVsv10l0UgnVCG8mpDWqvSpthM/qrIky6qder+orP6cmHSm8IQ2CLg=="
+        // Rotated public key is injected at build time. Empty means updates fail closed.
+        val PINNED_PUBLIC_KEY_BASE64: String = BuildConfig.UI_RELEASE_PUBLIC_KEY_BASE64
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
@@ -79,6 +78,10 @@ class LiveUiManager(
      */
     fun verifyEcdsaSignature(canonicalData: String, signatureBase64: String): Boolean {
         return try {
+            if (PINNED_PUBLIC_KEY_BASE64.isBlank()) {
+                AuditLogger.log("SECURITY", "UI_RELEASE_KEY_MISSING", "No rotated Live UI public key is configured in this APK; updates are disabled.", AuditSeverity.WARNING)
+                return false
+            }
             val keyBytes = Base64.decode(PINNED_PUBLIC_KEY_BASE64, Base64.DEFAULT)
             val keySpec = X509EncodedKeySpec(keyBytes)
             val keyFactory = KeyFactory.getInstance("EC")
@@ -133,6 +136,11 @@ class LiveUiManager(
                     val buildId = json.getString("buildId")
                     val checksum = json.getString("checksumSha256")
                     val signature = json.getString("signature")
+                    val assets = json.optJSONArray("assets")
+                    if (assets == null || assets.length() != 3) {
+                        handleOfflineOrFailure("Invalid release manifest: required asset hashes are missing")
+                        return@launch
+                    }
 
                     // 1. Asymmetric Cryptographic Verification of Manifest
                     val canonicalData = "$version:$buildId:$checksum"
@@ -158,7 +166,7 @@ class LiveUiManager(
 
                     // 2. Fetch complete UI bundle payload
                     val bundleUrl = "$baseUrl/api/v1/ui-releases/$version/bundle"
-                    downloadAndApplyBundle(bundleUrl, version, buildId, checksum, signature)
+                    downloadAndApplyBundle(bundleUrl, version, buildId, checksum, signature, assets)
                 }
             } catch (e: Exception) {
                 handleOfflineOrFailure(e.localizedMessage ?: "Network error checking update")
@@ -173,7 +181,8 @@ class LiveUiManager(
         version: String,
         buildId: String,
         expectedChecksum: String,
-        signature: String
+        signature: String,
+        assets: org.json.JSONArray
     ) = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(bundleUrl).get().build()
@@ -196,18 +205,46 @@ class LiveUiManager(
                 val stageDir = File(liveUiDir, "stage_$version")
                 stageDir.mkdirs()
 
+                stageDir.deleteRecursively()
+                stageDir.mkdirs()
+
                 val indexHtml = filesObj.optString("index.html")
                 val liveCss = filesObj.optString("live.css")
                 val liveJs = filesObj.optString("live.js")
-
-                if (indexHtml.isBlank() || liveCss.isBlank() || liveJs.isBlank()) {
-                    handleOfflineOrFailure("Bundle contained empty files")
-                    return@use
+                val assetsByPath = mutableMapOf<String, org.json.JSONObject>()
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i) ?: continue
+                    assetsByPath[asset.optString("path")] = asset
                 }
 
-                File(stageDir, "index.html").writeText(indexHtml)
-                File(stageDir, "live.css").writeText(liveCss)
-                File(stageDir, "live.js").writeText(liveJs)
+                val bundleFiles = mapOf(
+                    "live/index.html" to indexHtml,
+                    "live/live.css" to liveCss,
+                    "live/live.js" to liveJs
+                )
+                for ((assetPath, content) in bundleFiles) {
+                    val metadata = assetsByPath[assetPath]
+                    if (metadata == null || content.isBlank()) {
+                        handleOfflineOrFailure("Bundle missing signed asset metadata or content for $assetPath")
+                        stageDir.deleteRecursively()
+                        return@use
+                    }
+                    val bytes = content.toByteArray(Charsets.UTF_8)
+                    val expectedSize = metadata.optLong("size", -1L)
+                    val expectedHash = metadata.optString("sha256", "")
+                    val actualHash = MessageDigest.getInstance("SHA-256")
+                        .digest(bytes).joinToString("") { "%02x".format(it) }
+                    if (bytes.size.toLong() != expectedSize || !actualHash.equals(expectedHash, ignoreCase = true)) {
+                        AuditLogger.log("SECURITY", "UI_ASSET_HASH_MISMATCH", "Rejected modified UI asset: $assetPath", AuditSeverity.CRITICAL)
+                        handleOfflineOrFailure("Live UI asset integrity check failed for $assetPath")
+                        stageDir.deleteRecursively()
+                        return@use
+                    }
+                }
+
+                File(stageDir, "index.html").writeText(indexHtml, Charsets.UTF_8)
+                File(stageDir, "live.css").writeText(liveCss, Charsets.UTF_8)
+                File(stageDir, "live.js").writeText(liveJs, Charsets.UTF_8)
 
                 // Copy previous active to last_known_good
                 if (activeDir.exists()) {
@@ -227,7 +264,7 @@ class LiveUiManager(
                 AuditLogger.log(
                     category = "LIVE_UI",
                     action = "UI_ACTIVATED",
-                    details = "Live UI updated to v$version ($buildId). Verified asymmetric ECDSA-SHA256 signature.",
+                    details = "Live UI updated to v$version ($buildId). ECDSA signature and all signed asset hashes/sizes verified.",
                     severity = AuditSeverity.SECURITY
                 )
             }
