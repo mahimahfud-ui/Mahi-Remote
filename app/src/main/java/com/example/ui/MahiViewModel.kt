@@ -927,13 +927,16 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun approveIncomingRequest(req: OperatorRequest) {
-        pairingManager.approveRequest(req)
+        // Share one session identifier across receiver, signaling server and controller.
+        val sessionId = UUID.randomUUID().toString()
+        pairingManager.approveRequest(req, sessionId)
         pairingManager.setScreenStreaming(ScreenCaptureService.streamState.value is ScreenStreamState.Active)
+
         // Only permissions explicitly requested and approved in this owner action
         // are sent to the signaling server and become active session capabilities.
         if (req.controllerId.isNotBlank()) {
             val payload = JSONObject()
-                .put("sessionId", UUID.randomUUID().toString())
+                .put("sessionId", sessionId)
                 .put("receiverName", identity.deviceName)
                 .put("status", "APPROVED")
                 .put("fingerprint", identity.fingerprint)
