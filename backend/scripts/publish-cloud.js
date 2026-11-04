@@ -15,7 +15,11 @@ const path = require('path');
 const crypto = require('crypto');
 
 const dotenv = require('dotenv');
-const envCandidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../.env')];
+const envCandidates = [
+  path.resolve(__dirname, '../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(process.cwd(), '.env'),
+];
 const envPath = envCandidates.find((candidate) => fs.existsSync(candidate));
 if (envPath) dotenv.config({ path: envPath });
 
