@@ -25,10 +25,10 @@ data class KnownTargetDevice(
 )
 
 data class RemoteTelemetry(
-    val batteryPercent: Int = 85,
-    val batteryTempC: Float = 33.5f,
-    val storageFree: String = "42.5 GB",
-    val roundTripTimeMs: Int = 34
+    val batteryPercent: Int = -1,
+    val batteryTempC: Float = -1f,
+    val storageFree: String = "Unknown",
+    val roundTripTimeMs: Int = 0
 )
 
 data class RemoteDisplayMetrics(
