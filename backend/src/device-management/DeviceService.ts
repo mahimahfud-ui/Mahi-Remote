@@ -27,7 +27,10 @@ export class DeviceService {
       try {
         this.dbPool = new Pool({
           connectionString: process.env.DATABASE_URL,
-          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+          // Never disable TLS certificate validation. Set DATABASE_SSL=true
+          // only for database endpoints that require TLS; provide a trusted CA via
+          // NODE_EXTRA_CA_CERTS when using a private certificate authority.
+          ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
           max: 10,
           idleTimeoutMillis: 30000,
         });
