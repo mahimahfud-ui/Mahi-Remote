@@ -919,10 +919,6 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
         _showDisconnectDialog.value = false
     }
 
-    fun simulateOperatorConnection() {
-        pairingManager.simulateIncomingOperatorRequest()
-    }
-
     fun approveIncomingRequest(req: OperatorRequest) {
         pairingManager.approveRequest(req)
         // If request originated from an Android or Windows controller, send PAIR_ACCEPT back
