@@ -42,6 +42,9 @@ class WebRtcSessionManager(
     private var screenCapturer: ScreenCapturerAndroid? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var dataChannel: DataChannel? = null
+    private val pendingIceLock = Any()
+    private val pendingRemoteIceCandidates = mutableListOf<IceCandidate>()
+    @Volatile private var hasRemoteDescription = false
 
     var remoteVideoTrack: VideoTrack? = null
         private set
@@ -115,6 +118,10 @@ class WebRtcSessionManager(
         onRemoteTrack: ((VideoTrack) -> Unit)? = null
     ) {
         val factory = peerConnectionFactory ?: return
+        synchronized(pendingIceLock) {
+            pendingRemoteIceCandidates.clear()
+            hasRemoteDescription = false
+        }
 
         val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -134,7 +141,11 @@ class WebRtcSessionManager(
 
             override fun onIceCandidate(candidate: IceCandidate?) {
                 if (candidate != null) {
-                    val payload = """{"sdpMid":"${candidate.sdpMid}","sdpMLineIndex":${candidate.sdpMLineIndex},"candidate":"${candidate.sdp}"}"""
+                    val payload = org.json.JSONObject()
+                        .put("sdpMid", candidate.sdpMid)
+                        .put("sdpMLineIndex", candidate.sdpMLineIndex)
+                        .put("candidate", candidate.sdp)
+                        .toString()
                     onSignalingMessage("ICE_CANDIDATE", payload)
                 }
             }
@@ -216,6 +227,7 @@ class WebRtcSessionManager(
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onSetSuccess() {
+                markRemoteDescriptionSet()
                 val constraints = MediaConstraints()
                 peerConnection?.createAnswer(object : SdpObserver {
                     override fun onCreateSuccess(answerDesc: SessionDescription?) {
@@ -245,6 +257,7 @@ class WebRtcSessionManager(
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onSetSuccess() {
+                markRemoteDescriptionSet()
                 AuditLogger.log("WEBRTC", "ANSWER_APPLIED", "Remote SDP answer applied successfully", AuditSeverity.INFO)
             }
             override fun onCreateFailure(p0: String?) {}
@@ -252,9 +265,35 @@ class WebRtcSessionManager(
         }, desc)
     }
 
+    private fun markRemoteDescriptionSet() {
+        val queued = synchronized(pendingIceLock) {
+            hasRemoteDescription = true
+            pendingRemoteIceCandidates.toList().also { pendingRemoteIceCandidates.clear() }
+        }
+        queued.forEach { candidate ->
+            val accepted = peerConnection?.addIceCandidate(candidate) ?: false
+            if (!accepted) {
+                AuditLogger.log("WEBRTC", "ICE_CANDIDATE_REJECTED", "Queued remote ICE candidate was rejected", AuditSeverity.WARNING)
+            }
+        }
+    }
+
     fun addRemoteIceCandidate(sdpMid: String, sdpMLineIndex: Int, sdp: String) {
+        if (sdp.isBlank()) return
         val candidate = IceCandidate(sdpMid, sdpMLineIndex, sdp)
-        peerConnection?.addIceCandidate(candidate)
+        val shouldQueue = synchronized(pendingIceLock) {
+            if (!hasRemoteDescription) {
+                if (pendingRemoteIceCandidates.size >= 256) pendingRemoteIceCandidates.removeAt(0)
+                pendingRemoteIceCandidates.add(candidate)
+                true
+            } else false
+        }
+        if (!shouldQueue) {
+            val accepted = peerConnection?.addIceCandidate(candidate) ?: false
+            if (!accepted) {
+                AuditLogger.log("WEBRTC", "ICE_CANDIDATE_REJECTED", "Remote ICE candidate was rejected", AuditSeverity.WARNING)
+            }
+        }
     }
 
     fun sendDataChannelMessage(msg: String): Boolean {
@@ -274,6 +313,10 @@ class WebRtcSessionManager(
 
     fun close() {
         stopScreenCapture()
+        synchronized(pendingIceLock) {
+            pendingRemoteIceCandidates.clear()
+            hasRemoteDescription = false
+        }
         try {
             dataChannel?.close()
             dataChannel = null
