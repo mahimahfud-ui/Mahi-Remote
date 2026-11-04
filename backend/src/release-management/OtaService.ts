@@ -18,27 +18,14 @@ export interface OtaReleaseMetadata {
   rollbackRef?: string | null;
 }
 
+const PACKAGE_NAME = 'com.aistudio.mahiremote.bqpjku';
+
 export class OtaService {
   private static storageDir = path.join(__dirname, '../../data');
   private static apkDir = path.join(OtaService.storageDir, 'apk');
   private static storageFile = path.join(OtaService.storageDir, 'app-updates.json');
-  private static adminKey = process.env.ADMIN_API_KEY || 'mahi-admin-secret-2026';
-
-  private static currentRelease: OtaReleaseMetadata = {
-    packageName: 'com.aistudio.mahiremote.bqpjku',
-    versionName: '1.0.0',
-    versionCode: 1,
-    apkDownloadUrl: '/api/v1/app-updates/download/latest',
-    sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-    fileSizeBytes: 24500000,
-    releaseDate: new Date().toISOString(),
-    minSdk: 26,
-    targetSdk: 36,
-    signingFingerprint: '14:2B:6F:89:D2:C1:4E:99:A5:12:33:77:FF:88:99:00',
-    releaseNotes: 'Initial production native core with WebRTC streaming, MediaProjection foreground service, and Accessibility input.',
-    isMandatory: false,
-  };
-
+  private static adminKey = process.env.ADMIN_API_KEY || '';
+  private static currentRelease: OtaReleaseMetadata | null = null;
   private static history: OtaReleaseMetadata[] = [];
 
   static {
@@ -47,70 +34,90 @@ export class OtaService {
   }
 
   public static validateAdminKey(key: string | undefined): boolean {
-    if (!key) return false;
-    return key === this.adminKey || key === `Bearer ${this.adminKey}`;
+    if (!key || !this.adminKey) return false;
+    const supplied = key.startsWith('Bearer ') ? key.slice(7) : key;
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(this.adminKey);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
   private static ensureStorage() {
-    if (!fs.existsSync(this.storageDir)) {
-      try {
-        fs.mkdirSync(this.storageDir, { recursive: true });
-      } catch (e) {
-        console.warn('[OtaService] Could not create storage directory:', e);
-      }
-    }
-    if (!fs.existsSync(this.apkDir)) {
-      try {
-        fs.mkdirSync(this.apkDir, { recursive: true });
-      } catch (e) {
-        console.warn('[OtaService] Could not create apk directory:', e);
-      }
+    fs.mkdirSync(this.apkDir, { recursive: true });
+  }
+
+  private static isValidApkBuffer(buffer: Buffer): boolean {
+    if (!buffer || buffer.length < 128) return false;
+    const eocd = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+    const centralDirectory = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+    const searchFrom = Math.max(0, buffer.length - 65557);
+    const eocdIndex = buffer.lastIndexOf(eocd);
+    if (eocdIndex < searchFrom) return false;
+    if (buffer.indexOf(centralDirectory, 0) < 0) return false;
+    // Android APKs are ZIP archives with a root AndroidManifest.xml entry.
+    return buffer.includes(Buffer.from('AndroidManifest.xml', 'ascii'));
+  }
+
+  private static isReleaseFileValid(release: OtaReleaseMetadata): boolean {
+    if (!release || release.packageName !== PACKAGE_NAME ||
+        !/^\\d+\\.\\d+\\.\\d+$/.test(release.versionName) ||
+        !Number.isSafeInteger(release.versionCode) || release.versionCode < 1 ||
+        !/^[a-f0-9]{64}$/i.test(release.sha256)) return false;
+
+    const filePath = this.getApkFilePath(release.versionName);
+    if (!filePath) return false;
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size !== release.fileSizeBytes) return false;
+      const bytes = fs.readFileSync(filePath);
+      if (!this.isValidApkBuffer(bytes)) return false;
+      return crypto.createHash('sha256').update(bytes).digest('hex') === release.sha256;
+    } catch {
+      return false;
     }
   }
 
   private static loadRelease() {
-    if (fs.existsSync(this.storageFile)) {
-      try {
-        const raw = fs.readFileSync(this.storageFile, 'utf-8');
-        const data = JSON.parse(raw);
-        if (data.currentRelease && data.currentRelease.packageName) {
-          this.currentRelease = data.currentRelease;
-        }
-        if (Array.isArray(data.history)) {
-          this.history = data.history;
-        }
-      } catch (e) {
-        console.warn('[OtaService] Failed to load OTA metadata, using default:', e);
-      }
-    }
-    if (this.history.length === 0) {
-      this.history.push(this.currentRelease);
+    if (!fs.existsSync(this.storageFile)) return;
+    try {
+      const raw = fs.readFileSync(this.storageFile, 'utf-8');
+      const data = JSON.parse(raw);
+      const candidates: OtaReleaseMetadata[] = Array.isArray(data.history) ? data.history : [];
+      if (data.currentRelease) candidates.unshift(data.currentRelease);
+      const seen = new Set<string>();
+      this.history = candidates.filter((release) => {
+        if (!release || seen.has(release.versionName) || !this.isReleaseFileValid(release)) return false;
+        seen.add(release.versionName);
+        return true;
+      });
+      this.currentRelease = this.history[0] || null;
+    } catch (e) {
+      console.warn('[OtaService] Failed to load valid APK releases:', e);
+      this.currentRelease = null;
+      this.history = [];
     }
   }
 
   private static persist() {
-    try {
-      this.ensureStorage();
-      fs.writeFileSync(
-        this.storageFile,
-        JSON.stringify({ currentRelease: this.currentRelease, history: this.history }, null, 2),
-        'utf-8'
-      );
-    } catch (e) {
-      console.warn('[OtaService] Failed to persist OTA release:', e);
-    }
+    fs.mkdirSync(this.storageDir, { recursive: true });
+    fs.writeFileSync(
+      this.storageFile,
+      JSON.stringify({ currentRelease: this.currentRelease, history: this.history }, null, 2),
+      'utf-8'
+    );
   }
 
-  public static getLatestRelease(platform: string = 'android'): OtaReleaseMetadata {
-    return this.currentRelease;
+  public static getLatestRelease(platform: string = 'android'): OtaReleaseMetadata | null {
+    if (platform.toLowerCase() !== 'android' || !this.currentRelease) return null;
+    return this.isReleaseFileValid(this.currentRelease) ? this.currentRelease : null;
   }
 
   public static getHistory(): OtaReleaseMetadata[] {
-    return this.history;
+    return this.history.filter((release) => this.isReleaseFileValid(release));
   }
 
   public static getApkFilePath(versionName?: string): string | null {
-    const targetVersion = versionName || this.currentRelease.versionName;
+    const targetVersion = versionName || this.currentRelease?.versionName;
+    if (!targetVersion || !/^\\d+\\.\\d+\\.\\d+$/.test(targetVersion)) return null;
     const filePath = path.join(this.apkDir, `mahi-remote-v${targetVersion}.apk`);
     return fs.existsSync(filePath) ? filePath : null;
   }
@@ -121,19 +128,34 @@ export class OtaService {
     versionCode: number;
     releaseNotes: string;
     isMandatory?: boolean;
-    signingFingerprint?: string;
+    signingFingerprint: string;
+    packageName?: string;
   }): { success: boolean; release?: OtaReleaseMetadata; error?: string } {
-    const { buffer, versionName, versionCode, releaseNotes, isMandatory = false } = params;
+    const {
+      buffer,
+      versionName,
+      versionCode,
+      releaseNotes,
+      isMandatory = false,
+      signingFingerprint,
+      packageName = PACKAGE_NAME,
+    } = params;
 
-    if (!buffer || buffer.length === 0) {
-      return { success: false, error: 'Empty APK buffer received' };
+    if (!this.adminKey) return { success: false, error: 'ADMIN_API_KEY is not configured' };
+    if (!buffer || buffer.length === 0 || !this.isValidApkBuffer(buffer)) {
+      return { success: false, error: 'Upload is not a valid APK ZIP archive with AndroidManifest.xml' };
     }
-
-    if (!versionName || !versionCode || !releaseNotes) {
-      return { success: false, error: 'versionName, versionCode, and releaseNotes are required' };
+    if (packageName !== PACKAGE_NAME) {
+      return { success: false, error: `APK package must be ${PACKAGE_NAME}` };
     }
-
-    if (versionCode <= this.currentRelease.versionCode) {
+    if (!versionName || !/^\\d+\\.\\d+\\.\\d+$/.test(versionName) ||
+        !Number.isSafeInteger(versionCode) || versionCode < 1 || !releaseNotes) {
+      return { success: false, error: 'Valid versionName, positive integer versionCode, and releaseNotes are required' };
+    }
+    if (!signingFingerprint || !/^([a-f0-9]{2}:){31}[a-f0-9]{2}$/i.test(signingFingerprint)) {
+      return { success: false, error: 'A verified SHA-256 APK signing-certificate fingerprint is required' };
+    }
+    if (this.currentRelease && versionCode <= this.currentRelease.versionCode) {
       return { success: false, error: `versionCode (${versionCode}) must be greater than current (${this.currentRelease.versionCode})` };
     }
 
@@ -141,17 +163,15 @@ export class OtaService {
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     const apkFileName = `mahi-remote-v${versionName}.apk`;
     const apkPath = path.join(this.apkDir, apkFileName);
-
     try {
-      fs.writeFileSync(apkPath, buffer);
+      fs.writeFileSync(apkPath, buffer, { flag: 'wx' });
     } catch (e: any) {
       return { success: false, error: `Failed to store APK file: ${e.message}` };
     }
 
-    const previousVersion = this.currentRelease.versionName;
-
-    this.currentRelease = {
-      packageName: 'com.aistudio.mahiremote.bqpjku',
+    const previousVersion = this.currentRelease?.versionName || null;
+    const release: OtaReleaseMetadata = {
+      packageName: PACKAGE_NAME,
       versionName,
       versionCode,
       apkDownloadUrl: `/api/v1/app-updates/download/${versionName}`,
@@ -160,28 +180,28 @@ export class OtaService {
       releaseDate: new Date().toISOString(),
       minSdk: 26,
       targetSdk: 36,
-      signingFingerprint: params.signingFingerprint || '14:2B:6F:89:D2:C1:4E:99:A5:12:33:77:FF:88:99:00',
+      signingFingerprint,
       releaseNotes,
       isMandatory,
-      rollbackRef: previousVersion
+      rollbackRef: previousVersion,
     };
 
-    this.history.unshift(this.currentRelease);
+    this.currentRelease = release;
+    this.history = [release, ...this.history.filter((item) => item.versionName !== versionName)];
     this.persist();
-
-    console.log(`[OtaService] Stored and published Native APK: v${versionName} (code: ${versionCode}, size: ${buffer.length} bytes, SHA-256: ${sha256})`);
-    return { success: true, release: this.currentRelease };
+    console.log(`[OtaService] Published structurally valid APK v${versionName}; SHA-256 ${sha256}`);
+    return { success: true, release };
   }
 
   public static rollback(targetVersionName: string): { success: boolean; release?: OtaReleaseMetadata; error?: string } {
-    const target = this.history.find(h => h.versionName === targetVersionName);
+    const target = this.history.find((release) =>
+      release.versionName === targetVersionName && this.isReleaseFileValid(release)
+    );
     if (!target) {
-      return { success: false, error: `Release v${targetVersionName} not found in history` };
+      return { success: false, error: `Valid APK release v${targetVersionName} was not found` };
     }
-
     this.currentRelease = target;
     this.persist();
-    console.log(`[OtaService] Rolled back native APK to v${targetVersionName}`);
     return { success: true, release: this.currentRelease };
   }
 }
