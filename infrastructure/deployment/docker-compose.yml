@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   signaling-backend:
     build:
@@ -9,45 +7,57 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - PORT=8080
-      - DATABASE_URL=postgres://mahi_admin:SecureMahiPass2026@postgres-db:5432/mahi_remote
-      - JWT_SECRET=mahi-remote-production-ecdsa-jwt-secret-key-32b
-      - TURN_SERVER_URL=turn:turn.mahi-remote.cloud:3478
-      - TURN_SECRET=mahi-turn-shared-secret-auth-key
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+      DATABASE_URL: "${DATABASE_URL:?Set DATABASE_URL in your uncommitted .env file}"
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in your uncommitted .env file}"
+      ADMIN_API_KEY: "${ADMIN_API_KEY:?Set ADMIN_API_KEY in your uncommitted .env file}"
+      TURN_SHARED_SECRET: "${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in your uncommitted .env file}"
+      TURN_DOMAIN: "${TURN_DOMAIN:?Set TURN_DOMAIN in your uncommitted .env file}"
+      TURN_PORT: "${TURN_PORT:-3478}"
+      UI_RELEASE_PRIVATE_KEY: "${UI_RELEASE_PRIVATE_KEY:?Set UI_RELEASE_PRIVATE_KEY in your deployment secrets}"
+      UI_RELEASE_PUBLIC_KEY: "${UI_RELEASE_PUBLIC_KEY:?Set UI_RELEASE_PUBLIC_KEY in your deployment secrets}"
     depends_on:
       - postgres-db
-    restart: always
+    restart: unless-stopped
 
   postgres-db:
     image: postgres:16-alpine
     container_name: mahi-postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
-      - POSTGRES_USER=mahi_admin
-      - POSTGRES_PASSWORD=SecureMahiPass2026
-      - POSTGRES_DB=mahi_remote
+      POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in your uncommitted .env file}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your uncommitted .env file}"
+      POSTGRES_DB: "${POSTGRES_DB:-mahi_remote}"
     volumes:
       - mahi-postgres-data:/var/lib/postgresql/data
-      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    restart: always
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    restart: unless-stopped
 
   coturn-server:
     image: coturn/coturn:latest
     container_name: mahi-coturn
-    network_mode: "host"
+    network_mode: host
+    environment:
+      TURN_SHARED_SECRET: "${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in your uncommitted .env file}"
+    command:
+      - sh
+      - -c
+      - 'exec turnserver -c /etc/coturn/turnserver.conf --static-auth-secret="$$TURN_SHARED_SECRET"'
     volumes:
       - ./coturn.conf:/etc/coturn/turnserver.conf:ro
-    restart: always
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
     container_name: mahi-prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    restart: always
+    restart: unless-stopped
 
 volumes:
   mahi-postgres-data:
