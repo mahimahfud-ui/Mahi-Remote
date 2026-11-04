@@ -120,18 +120,7 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeControllerSession = MutableStateFlow<ControllerSession?>(null)
     val activeControllerSession: StateFlow<ControllerSession?> = _activeControllerSession.asStateFlow()
 
-    private val _recentTargetDevices = MutableStateFlow<List<KnownTargetDevice>>(
-        listOf(
-            KnownTargetDevice(
-                deviceId = "MAHI-NOAKHALI-01",
-                name = "Phone B — Receiver (Noakhali)",
-                model = "Pixel 8 Pro (Android 14)",
-                fingerprint = "7A:B3:99:C2:54:E1:88:20:D1:66:33:F0:91:AA:BB:CC",
-                lastConnectedAtMillis = System.currentTimeMillis() - 7200000L,
-                isOnline = true
-            )
-        )
-    )
+    private val _recentTargetDevices = MutableStateFlow<List<KnownTargetDevice>>(emptyList())
     val recentTargetDevices: StateFlow<List<KnownTargetDevice>> = _recentTargetDevices.asStateFlow()
 
     private val _remoteViewerTab = MutableStateFlow(RemoteViewerTab.SCREEN)
@@ -143,13 +132,13 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     private val _remoteAppList = MutableStateFlow<List<AppItem>>(emptyList())
     val remoteAppList: StateFlow<List<AppItem>> = _remoteAppList.asStateFlow()
 
-    private val _remoteTelemetry = MutableStateFlow<RemoteTelemetry?>(RemoteTelemetry())
+    private val _remoteTelemetry = MutableStateFlow<RemoteTelemetry?>(null)
     val remoteTelemetry: StateFlow<RemoteTelemetry?> = _remoteTelemetry.asStateFlow()
 
     private val _remoteDisplayMetrics = MutableStateFlow(com.example.controller.RemoteDisplayMetrics())
     val remoteDisplayMetrics: StateFlow<com.example.controller.RemoteDisplayMetrics> = _remoteDisplayMetrics.asStateFlow()
 
-    private val _remoteMetrics = MutableStateFlow(StreamMetrics(roundTripTimeMs = 32, currentFps = 60, bitrateKbps = 2400))
+    private val _remoteMetrics = MutableStateFlow(StreamMetrics())
     val remoteMetrics: StateFlow<StreamMetrics> = _remoteMetrics.asStateFlow()
 
     val signalingClient: SignalingClient
@@ -319,14 +308,18 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
                     "DIAGNOSTICS_RESULT" -> {
                         val root = JSONObject(msg.payload)
                         val payloadObj = if (root.has("payload") && root.get("payload") is JSONObject) root.getJSONObject("payload") else root
-                        val battery = payloadObj.optInt("battery", 85)
-                        val temp = payloadObj.optDouble("temp", 33.5).toFloat()
-                        val storage = payloadObj.optString("storage", "38.2 GB")
+                        if (!payloadObj.has("battery") && !payloadObj.has("temp") && !payloadObj.has("storage")) {
+                            _remoteTelemetry.value = null
+                            break
+                        }
+                        val battery = payloadObj.optInt("battery", -1)
+                        val temp = payloadObj.optDouble("temp", -1.0).toFloat()
+                        val storage = payloadObj.optString("storage", "Unknown")
                         _remoteTelemetry.value = RemoteTelemetry(
                             batteryPercent = battery,
                             batteryTempC = temp,
                             storageFree = storage,
-                            roundTripTimeMs = 30
+                            roundTripTimeMs = payloadObj.optInt("rtt", 0)
                         )
                     }
                     "DISPLAY_INFO" -> {
