@@ -28,7 +28,9 @@
       width: 1080,
       height: 2400,
       rotation: 0
-    }
+    },
+    pairingTimeout: null,
+    pairingInProgress: false
   };
 
   /* -------------------------------------------------------------
@@ -116,16 +118,27 @@
   function handleSignalingMessage(msg) {
     switch (msg.type) {
       case 'PAIR_ACCEPT': {
+        clearTimeout(state.pairingTimeout);
+        state.pairingTimeout = null;
+        state.pairingInProgress = false;
         state.targetDeviceId = msg.senderId || msg.sender;
-        state.targetDeviceName = msg.receiverName || 'Android Phone';
+        state.targetDeviceName = msg.receiverName || msg.payload?.receiverName || 'Android Phone';
         $('#device-model-text').textContent = state.targetDeviceName;
         onPairSuccess();
         break;
       }
+      case 'PAIR_PENDING': {
+        setStatus('Request sent. Approve the connection on your Android phone.', 'pending');
+        if (go) go.disabled = true;
+        break;
+      }
       case 'PAIR_REJECT':
       case 'PAIR_ERROR': {
+        clearTimeout(state.pairingTimeout);
+        state.pairingTimeout = null;
+        state.pairingInProgress = false;
         codeEl.classList.add('error');
-        setStatus(msg.error || 'Connection denied or pairing code expired.', 'error');
+        setStatus(msg.error || msg.reason || 'Connection denied or pairing code expired.', 'error');
         if (go) go.disabled = false;
         break;
       }
@@ -192,8 +205,14 @@
         break;
       }
       case 'ICE_CANDIDATE': {
-        if (state.peerConnection && msg.candidate) {
-          state.peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        const payload = (typeof msg.payload === 'string')
+          ? (() => { try { return JSON.parse(msg.payload); } catch { return {}; } })()
+          : (msg.payload || {});
+        const candidate = msg.candidate || payload.candidate || payload;
+        if (state.peerConnection && candidate?.candidate) {
+          state.peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(err => {
+            console.warn('[WebRTC] ICE candidate rejected:', err);
+          });
         }
         break;
       }
@@ -205,77 +224,57 @@
    * ------------------------------------------------------------- */
   async function pair() {
     const code = getCodeVal();
-    if (code.length < 6) return;
+    if (code.length !== 6 || state.pairingInProgress) return;
 
-    if (go) go.disabled = true;
-    setStatus('Contacting your phone…');
-    status.prepend(Object.assign(document.createElement('i'), {
-      className: 'spinner',
-      style: 'width:14px;height:14px;border-width:2px'
-    }));
-
-    // Hyphenate code as XXX-XXX
-    const formattedCode = `${code.substring(0, 3)}-${code.substring(3)}`;
-
-    try {
-      // 1. Send via WebSocket if open
-      const wsSent = sendWs({
-        type: 'PAIR_BY_CODE',
-        code: formattedCode,
-        operatorName: 'Mahi Web Controller',
-        operatorLocation: 'Browser Operator',
-        fingerprint: 'WEB-' + Math.random().toString(36).substring(2, 10).toUpperCase()
-      });
-
-      // 2. Also try REST endpoint verification as backup
-      const res = await fetch('/api/v1/pair/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: formattedCode,
-          operatorFingerprint: 'WEB-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
-          operatorName: 'Mahi Web Controller'
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        state.targetDeviceId = data.deviceId;
-        state.sessionToken = data.sessionToken;
-        onPairSuccess();
-      } else if (!wsSent) {
-        // Fallback simulation for offline testing
-        setTimeout(() => {
-          if (code === '000000') {
-            codeEl.classList.add('error');
-            setStatus('That code is not valid or has expired. Check the code shown in the Mahi app.', 'error');
-            if (go) go.disabled = false;
-          } else {
-            onPairSuccess();
-          }
-        }, 1200);
-      }
-    } catch (err) {
-      console.warn('Pairing verification error, using fallback:', err);
-      setTimeout(() => {
-        if (code === '000000') {
-          codeEl.classList.add('error');
-          setStatus('Invalid code. Check Mahi app on phone.', 'error');
-          if (go) go.disabled = false;
-        } else {
-          onPairSuccess();
-        }
-      }, 1000);
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+      setStatus('Signaling server is offline. Reconnecting; please try again.', 'error');
+      if (go) go.disabled = false;
+      return;
     }
+
+    state.pairingInProgress = true;
+    if (go) go.disabled = true;
+    setStatus('Sending a secure pairing request…');
+    const spinner = document.createElement('i');
+    spinner.className = 'spinner';
+    spinner.style.cssText = 'width:14px;height:14px;border-width:2px';
+    status?.prepend(spinner);
+
+    const formattedCode = `${code.substring(0, 3)}-${code.substring(3)}`;
+    const sent = sendWs({
+      type: 'PAIR_BY_CODE',
+      code: formattedCode,
+      operatorName: 'Mahi Web Controller',
+      operatorLocation: 'Browser Operator',
+      requestedScopes: ['Screen Mirroring', 'Remote Interaction']
+    });
+
+    if (!sent) {
+      state.pairingInProgress = false;
+      setStatus('Could not send pairing request. Check the network and retry.', 'error');
+      if (go) go.disabled = false;
+      return;
+    }
+
+    setStatus('Request sent. Waiting for the phone owner to approve…', 'pending');
+    clearTimeout(state.pairingTimeout);
+    state.pairingTimeout = setTimeout(() => {
+      state.pairingInProgress = false;
+      setStatus('No approval response received. Check the Android phone and try again.', 'error');
+      if (go) go.disabled = false;
+    }, 30000);
   }
 
   function onPairSuccess() {
+    clearTimeout(state.pairingTimeout);
+    state.pairingTimeout = null;
+    state.pairingInProgress = false;
     $('#pair').hidden = true;
     $('#app').hidden = false;
-    drawScreen();
+    setState('loading');
     startSession();
     initializeWebRtc();
-    toast('Connected to phone successfully');
+    toast('Phone owner approved. Establishing live stream…');
   }
 
   /* -------------------------------------------------------------
@@ -317,8 +316,8 @@
         if (remoteVideo) {
           remoteVideo.srcObject = event.streams[0] || new MediaStream([event.track]);
           remoteVideo.style.display = 'block';
+          remoteVideo.onloadeddata = () => setState('live');
           remoteVideo.play().catch(e => console.warn('[WebRTC] Video autoplay caught:', e));
-          setState('live');
         }
       };
 
@@ -339,10 +338,11 @@
 
       state.peerConnection.oniceconnectionstatechange = () => {
         console.log('[WebRTC] ICE Connection State:', state.peerConnection.iceConnectionState);
-        if (state.peerConnection.iceConnectionState === 'connected') {
-          setState('live');
-        } else if (state.peerConnection.iceConnectionState === 'disconnected' || state.peerConnection.iceConnectionState === 'failed') {
+        if (state.peerConnection.iceConnectionState === 'failed' ||
+            state.peerConnection.iceConnectionState === 'closed') {
           setState('error');
+        } else if (state.peerConnection.iceConnectionState === 'disconnected') {
+          setState('loading');
         }
       };
 
@@ -378,7 +378,6 @@
     }, 1000);
 
     setState('loading');
-    setTimeout(() => setState('live'), 900);
   }
 
   function setState(s) {
@@ -396,7 +395,11 @@
   if (retryBtn) {
     retryBtn.addEventListener('click', () => {
       setState('loading');
-      setTimeout(() => setState('live'), 1000);
+      if (state.peerConnection) {
+        state.peerConnection.close();
+        state.peerConnection = null;
+      }
+      initializeWebRtc();
     });
   }
 
@@ -414,26 +417,12 @@
     cv.width = r.width * d;
     cv.height = r.height * d;
     ctx.setTransform(d, 0, 0, d, 0, 0);
-
-    const g = ctx.createLinearGradient(0, 0, r.width, r.height);
-    g.addColorStop(0, '#0b2a33');
-    g.addColorStop(1, '#10131a');
-    ctx.fillStyle = g;
+    ctx.fillStyle = '#10131a';
     ctx.fillRect(0, 0, r.width, r.height);
-
-    // Modern placeholder wallpaper & icons
-    ctx.fillStyle = 'rgba(255,255,255,.08)';
-    const w = (r.width - 48) / 4;
-    for (let i = 0; i < 16; i++) {
-      ctx.beginPath();
-      ctx.roundRect(24 + (i % 4) * w, 120 + ((i / 4) | 0) * 90, w - 14, 62, 16);
-      ctx.fill();
-    }
-
-    ctx.fillStyle = 'rgba(45,226,208,.85)';
-    ctx.font = '600 13px system-ui';
+    ctx.fillStyle = 'rgba(255,255,255,.65)';
+    ctx.font = '500 13px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('Interactive Touch Screen Ready', r.width / 2, r.height - 40);
+    ctx.fillText('Waiting for live screen stream…', r.width / 2, r.height / 2);
   }
 
   addEventListener('resize', () => {
