@@ -27,8 +27,6 @@ const releaseNotes = getArg('notes', 'Obsidian Telemetry Live UI update from Goo
 const components = getArg('components', 'Dashboard,Diagnostics,Controls,LiveUI').split(',');
 
 const publicLiveDir = path.join(__dirname, '../public/live');
-const keysDir = path.join(__dirname, '../data/keys');
-const privateKeyFile = path.join(keysDir, 'ui-release-private-key.pem');
 const releasesFile = path.join(__dirname, '../data/ui-releases.json');
 
 if (!fs.existsSync(publicLiveDir)) {
@@ -55,20 +53,23 @@ for (const file of files) {
   }
 }
 
-// Ensure keys
-if (!fs.existsSync(privateKeyFile)) {
-  console.log('[Publisher] Initializing ECDSA P-256 keypair...');
-  fs.mkdirSync(keysDir, { recursive: true });
-  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
-    namedCurve: 'prime256v1',
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-  fs.writeFileSync(privateKeyFile, privateKey, { mode: 0o600 });
-  fs.writeFileSync(path.join(keysDir, 'ui-release-public-key.pem'), publicKey, { mode: 0o644 });
+// Signing is disabled until a newly rotated key pair is configured outside Git.
+const privateKeyPem = (process.env.UI_RELEASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+const publicKeyPem = (process.env.UI_RELEASE_PUBLIC_KEY || '').replace(/\\n/g, '\n');
+if (!privateKeyPem || !publicKeyPem) {
+  console.error('[Publisher] UI_RELEASE_PRIVATE_KEY and UI_RELEASE_PUBLIC_KEY are required.');
+  console.error('[Publisher] Configure a newly rotated ECDSA P-256 key pair in the deployment secret store.');
+  process.exit(1);
+}
+try {
+  const derivedPublicKey = crypto.createPublicKey(privateKeyPem)
+    .export({ type: 'spki', format: 'pem' }).toString().trim();
+  if (derivedPublicKey !== publicKeyPem.trim()) throw new Error('Configured public/private keys do not match');
+} catch (error) {
+  console.error('[Publisher] Invalid UI signing key configuration:', error.message);
+  process.exit(1);
 }
 
-const privateKeyPem = fs.readFileSync(privateKeyFile, 'utf-8');
 const buildId = `MAHI-BUILD-${Date.now().toString(36).toUpperCase()}`;
 
 // Canonical manifest object
