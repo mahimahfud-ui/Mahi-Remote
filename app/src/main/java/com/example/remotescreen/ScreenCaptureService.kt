@@ -9,12 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.R
 import com.example.security.AuditLogger
 import com.example.security.AuditSeverity
+import com.example.network.BackendConfig
+import com.example.network.IceServerProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -202,45 +206,52 @@ class ScreenCaptureService : Service() {
             ) ?: throw IllegalStateException("Android MediaProjection could not initialize a video track")
             projectionActive = true
 
-            // ICE state is the real connection signal. Do not fabricate frame,
-            // bitrate, RTT or packet-loss values while the peer is negotiating.
-            webRtcManager?.initPeerConnection(
-                iceServers = listOf(
-                    org.webrtc.PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-                ),
-                isSender = true,
-                onIceConnectionStateChanged = { iceState ->
-                    when (iceState) {
-                        org.webrtc.PeerConnection.IceConnectionState.CONNECTED,
-                        org.webrtc.PeerConnection.IceConnectionState.COMPLETED -> {
-                            _streamState.value = ScreenStreamState.Active(
-                                StreamMetrics(
-                                    currentFps = 0,
-                                    bitrateKbps = 0,
-                                    resolution = "${preset.width}x${preset.height}",
-                                    framesEncoded = 0,
-                                    bytesTransferred = 0,
-                                    roundTripTimeMs = 0,
-                                    packetLossPercent = 0f
-                                ),
-                                preset
-                            )
+            // Fetch short-lived STUN/TURN configuration off the service main thread.
+            // Create the PeerConnection only after the ICE list is available.
+            val manager = webRtcManager ?: throw IllegalStateException("WebRTC manager was not initialized")
+            val backendUrl = BackendConfig(applicationContext).getHttpBaseUrl()
+            Thread({
+                val iceServers = IceServerProvider.fetchBlocking(backendUrl)
+                Handler(Looper.getMainLooper()).post {
+                    if (webRtcManager !== manager || !projectionActive) return@post
+                    manager.initPeerConnection(
+                        iceServers = iceServers,
+                        isSender = true,
+                        onIceConnectionStateChanged = { iceState ->
+                            when (iceState) {
+                                org.webrtc.PeerConnection.IceConnectionState.CONNECTED,
+                                org.webrtc.PeerConnection.IceConnectionState.COMPLETED -> {
+                                    _streamState.value = ScreenStreamState.Active(
+                                        StreamMetrics(
+                                            currentFps = 0,
+                                            bitrateKbps = 0,
+                                            resolution = "${preset.width}x${preset.height}",
+                                            framesEncoded = 0,
+                                            bytesTransferred = 0,
+                                            roundTripTimeMs = 0,
+                                            packetLossPercent = 0f
+                                        ),
+                                        preset
+                                    )
+                                }
+                                org.webrtc.PeerConnection.IceConnectionState.FAILED -> {
+                                    _streamState.value = ScreenStreamState.Error("WebRTC ICE connection failed. Check network/TURN settings.")
+                                }
+                                org.webrtc.PeerConnection.IceConnectionState.DISCONNECTED,
+                                org.webrtc.PeerConnection.IceConnectionState.CHECKING,
+                                org.webrtc.PeerConnection.IceConnectionState.NEW -> {
+                                    _streamState.value = ScreenStreamState.Connecting
+                                }
+                                org.webrtc.PeerConnection.IceConnectionState.CLOSED -> {
+                                    _streamState.value = ScreenStreamState.Stopped
+                                }
+                                else -> Unit
+                            }
                         }
-                        org.webrtc.PeerConnection.IceConnectionState.FAILED -> {
-                            _streamState.value = ScreenStreamState.Error("WebRTC ICE connection failed. Check TURN/network settings.")
-                        }
-                        org.webrtc.PeerConnection.IceConnectionState.DISCONNECTED,
-                        org.webrtc.PeerConnection.IceConnectionState.CHECKING,
-                        org.webrtc.PeerConnection.IceConnectionState.NEW -> {
-                            _streamState.value = ScreenStreamState.Connecting
-                        }
-                        org.webrtc.PeerConnection.IceConnectionState.CLOSED -> {
-                            _streamState.value = ScreenStreamState.Stopped
-                        }
-                        else -> Unit
-                    }
+                    )
+                    AuditLogger.log("SCREEN", "PEER_CONNECTION_INITIALIZED", "WebRTC sender configured with ${iceServers.size} ICE entries", AuditSeverity.INFO)
                 }
-            )
+            }, "MahiIceConfig").start()
 
             AuditLogger.log("SCREEN", "CAPTURE_INITIALIZED", "MediaProjection video source initialized at ${metrics.widthPixels}x${metrics.heightPixels} (rot: $displayRotation); waiting for ICE connection", AuditSeverity.INFO)
         } catch (e: Exception) {
