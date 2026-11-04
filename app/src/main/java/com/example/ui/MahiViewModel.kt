@@ -31,8 +31,10 @@ import com.example.signaling.SignalingClient
 import com.example.signaling.SignalingMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -609,27 +611,49 @@ class MahiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun initControllerWebRtc(targetDeviceId: String) {
-        try {
-            controllerWebRtcManager?.close()
-            controllerWebRtcManager = com.example.webrtc.WebRtcSessionManager(
-                context = getApplication(),
-                onSignalingMessage = { type, payload ->
-                    signalingClient.send(type, payload, targetDeviceId)
+        viewModelScope.launch {
+            try {
+                val iceServers = withContext(Dispatchers.IO) {
+                    com.example.network.IceServerProvider.fetchBlocking(backendConfig.getHttpBaseUrl())
                 }
-            ).apply {
-                initPeerConnection(
-                    iceServers = listOf(
-                        org.webrtc.PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-                    ),
-                    isSender = false,
-                    onRemoteTrack = { _ ->
-                        AuditLogger.log("CONTROLLER", "STREAM_ESTABLISHED", "Remote video track connected to controller", AuditSeverity.INFO)
+                if (_activeControllerSession.value?.targetDeviceId != targetDeviceId) return@launch
+
+                controllerWebRtcManager?.close()
+                controllerWebRtcManager = com.example.webrtc.WebRtcSessionManager(
+                    context = getApplication(),
+                    onSignalingMessage = { type, payload ->
+                        signalingClient.send(type, payload, targetDeviceId)
                     }
-                )
-                createOffer()
+                ).apply {
+                    initPeerConnection(
+                        iceServers = iceServers,
+                        isSender = false,
+                        onRemoteTrack = { _ ->
+                            AuditLogger.log("CONTROLLER", "STREAM_ESTABLISHED", "Remote video track attached to Android controller", AuditSeverity.INFO)
+                        },
+                        onIceConnectionStateChanged = { iceState ->
+                            when (iceState) {
+                                org.webrtc.PeerConnection.IceConnectionState.FAILED -> {
+                                    _controllerErrorMessage.value = "WebRTC connection failed. Check network and TURN configuration."
+                                }
+                                org.webrtc.PeerConnection.IceConnectionState.DISCONNECTED -> {
+                                    _controllerErrorMessage.value = "Connection interrupted. Waiting for network recovery…"
+                                }
+                                org.webrtc.PeerConnection.IceConnectionState.CONNECTED,
+                                org.webrtc.PeerConnection.IceConnectionState.COMPLETED -> {
+                                    _controllerErrorMessage.value = null
+                                }
+                                else -> Unit
+                            }
+                        }
+                    )
+                    createOffer()
+                }
+                AuditLogger.log("CONTROLLER", "ICE_CONFIGURED", "Android controller initialized with ${iceServers.size} ICE entries", AuditSeverity.INFO)
+            } catch (e: Exception) {
+                _controllerErrorMessage.value = "Could not start remote video: ${e.message}"
+                AuditLogger.log("CONTROLLER", "WEBRTC_INIT_ERR", "Failed initializing controller WebRTC: ${e.message}", AuditSeverity.WARNING)
             }
-        } catch (e: Exception) {
-            AuditLogger.log("CONTROLLER", "WEBRTC_INIT_ERR", "Failed initializing controller WebRTC: ${e.message}", AuditSeverity.WARNING)
         }
     }
 
