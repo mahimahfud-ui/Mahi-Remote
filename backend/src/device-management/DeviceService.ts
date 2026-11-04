@@ -4,6 +4,7 @@ export interface RegisteredDevice {
   deviceId: string;
   deviceName: string;
   fingerprint: string;
+  publicKey?: string;
   isOnline: boolean;
   lastSeen: number;
 }
@@ -37,11 +38,12 @@ export class DeviceService {
     }
   }
 
-  public static async registerDevice(deviceId: string, deviceName: string, fingerprint: string): Promise<RegisteredDevice> {
+  public static async registerDevice(deviceId: string, deviceName: string, fingerprint: string, publicKey: string = fingerprint): Promise<RegisteredDevice> {
     const dev: RegisteredDevice = {
       deviceId,
       deviceName,
       fingerprint,
+      publicKey,
       isOnline: true,
       lastSeen: Date.now(),
     };
@@ -53,7 +55,7 @@ export class DeviceService {
           `INSERT INTO devices (device_id, device_name, fingerprint, public_key, android_version, manufacturer, model, is_online, last_seen_at)
            VALUES ($1, $2, $3, $4, '14.0', 'Android', 'Physical Device', true, NOW())
            ON CONFLICT (device_id) DO UPDATE SET is_online = true, last_seen_at = NOW()`,
-          [deviceId, deviceName, fingerprint, fingerprint]
+          [deviceId, deviceName, fingerprint, publicKey]
         );
       } catch (e) {
         console.warn('[DeviceService] DB error in registerDevice:', e);
@@ -61,6 +63,66 @@ export class DeviceService {
     }
 
     return dev;
+  }
+
+  public static async authenticateDeviceIdentity(
+    deviceId: string,
+    deviceName: string,
+    fingerprint: string,
+    publicKey: string
+  ): Promise<boolean> {
+    const existing = this.devices.get(deviceId);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint ||
+          (existing.publicKey && existing.publicKey !== publicKey)) return false;
+      this.devices.set(deviceId, { ...existing, deviceName, publicKey, isOnline: true, lastSeen: Date.now() });
+      return true;
+    }
+
+    if (this.dbPool) {
+      try {
+        const found = await this.dbPool.query(
+          'SELECT device_name, fingerprint, public_key FROM devices WHERE device_id = $1 LIMIT 1',
+          [deviceId]
+        );
+        if (found.rows.length > 0) {
+          const row = found.rows[0];
+          if (row.fingerprint !== fingerprint || row.public_key !== publicKey) return false;
+          await this.dbPool.query(
+            'UPDATE devices SET is_online = true, last_seen_at = NOW() WHERE device_id = $1',
+            [deviceId]
+          );
+          this.devices.set(deviceId, {
+            deviceId,
+            deviceName: row.device_name || deviceName,
+            fingerprint,
+            publicKey,
+            isOnline: true,
+            lastSeen: Date.now(),
+          });
+          return true;
+        }
+
+        await this.dbPool.query(
+          `INSERT INTO devices (device_id, device_name, fingerprint, public_key, android_version, manufacturer, model, is_online, last_seen_at)
+           VALUES ($1, $2, $3, $4, 'unknown', 'Android', 'Android device', true, NOW())`,
+          [deviceId, deviceName, fingerprint, publicKey]
+        );
+      } catch (e) {
+        console.error('[DeviceService] Device identity persistence failed; rejecting authentication:', e);
+        return false;
+      }
+    }
+
+    this.devices.set(deviceId, {
+      deviceId,
+      deviceName,
+      fingerprint,
+      publicKey,
+      isOnline: true,
+      lastSeen: Date.now(),
+    });
+    return true;
   }
 
   public static async storePairingCode(deviceId: string, code: string, expiresAt: number): Promise<void> {
