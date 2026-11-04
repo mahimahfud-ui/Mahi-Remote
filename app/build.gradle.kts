@@ -1,9 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
-val mahiUiReleasePublicKeyBase64 = providers.gradleProperty("mahiUiReleasePublicKeyBase64")
-  .orElse(providers.environmentVariable("MAHI_UI_RELEASE_PUBLIC_KEY_BASE64"))
-  .getOrElse("")
-
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -11,6 +7,10 @@ plugins {
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
 }
+
+val mahiUiReleasePublicKeyBase64 = providers.gradleProperty("mahiUiReleasePublicKeyBase64")
+  .orElse(providers.environmentVariable("MAHI_UI_RELEASE_PUBLIC_KEY_BASE64"))
+  .getOrElse("")
 
 android {
   namespace = "com.example"
