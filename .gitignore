@@ -30,3 +30,5 @@ debug.keystore
 /backend/data/apk/*.apk
 /dist/
 /backend/dist/
+/backend/data/local-ui-backup/
+/backend/public/.live-stage/
