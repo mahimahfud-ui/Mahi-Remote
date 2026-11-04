@@ -1,7 +1,13 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
+    throw new Error('JWT_SECRET must be configured with at least 32 bytes before issuing or verifying sessions');
+  }
+  return secret;
+}
 
 export interface AuthContext {
   entityId: string;
@@ -19,14 +25,14 @@ export class AuthService {
         type: ctx.entityType,
         fp: ctx.fingerprint,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: expiresIn as any }
     );
   }
 
   public static verifySessionToken(token: string): AuthContext | null {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, getJwtSecret()) as any;
       return {
         entityId: decoded.sub,
         entityType: decoded.type,
@@ -39,6 +45,11 @@ export class AuthService {
 
   public static checkRateLimit(ipOrId: string, maxRequests = 60, windowMs = 60000): boolean {
     const now = Date.now();
+    if (this.rateLimitMap.size > 10000) {
+      for (const [key, value] of this.rateLimitMap) {
+        if (now > value.resetAt) this.rateLimitMap.delete(key);
+      }
+    }
     const entry = this.rateLimitMap.get(ipOrId);
 
     if (!entry || now > entry.resetAt) {
