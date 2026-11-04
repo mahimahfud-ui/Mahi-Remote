@@ -24,19 +24,7 @@ class PairingManager(private val context: Context) {
     private val _pendingRequest = MutableStateFlow<OperatorRequest?>(null)
     val pendingRequest: StateFlow<OperatorRequest?> = _pendingRequest.asStateFlow()
 
-    private val _trustedControllers = MutableStateFlow<List<TrustedController>>(
-        listOf(
-            TrustedController(
-                id = "ctrl_sylhet_admin",
-                name = "Sylhet NOC - Workstation #1",
-                location = "Sylhet, Bangladesh",
-                fingerprint = "8E:4A:91:D2:11:F9:6C:55:A3:40:99:BC:14:8A:EF:29",
-                pairedAtMillis = System.currentTimeMillis() - 86400000L * 2,
-                lastConnectedAtMillis = System.currentTimeMillis() - 3600000L * 5,
-                isRevoked = false
-            )
-        )
-    )
+    private val _trustedControllers = MutableStateFlow<List<TrustedController>>(emptyList())
     val trustedControllers: StateFlow<List<TrustedController>> = _trustedControllers.asStateFlow()
 
     init {
@@ -70,21 +58,6 @@ class PairingManager(private val context: Context) {
         return data
     }
 
-    fun simulateIncomingOperatorRequest(
-        operatorName: String = "Mahi Windows Operator (Sylhet)",
-        location: String = "Sylhet, Bangladesh",
-        fingerprint: String = "8E:4A:91:D2:11:F9:6C:55:A3:40:99:BC:14:8A:EF:29",
-        scopes: List<String> = listOf("Screen Mirroring", "Remote Interaction", "File Transfer", "Diagnostics")
-    ) {
-        recordIncomingOperatorRequest(
-            controllerId = "operator_sylhet_mock",
-            operatorName = operatorName,
-            location = location,
-            fingerprint = fingerprint,
-            scopes = scopes
-        )
-    }
-
     fun recordIncomingOperatorRequest(
         controllerId: String,
         operatorName: String,
@@ -113,7 +86,7 @@ class PairingManager(private val context: Context) {
             operatorLocation = request.operatorLocation,
             controllerFingerprint = request.controllerFingerprint,
             startedAtMillis = System.currentTimeMillis(),
-            isScreenStreaming = true,
+            isScreenStreaming = false,
             isInputEnabled = true
         )
         _activeSession.value = session
