@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { DeviceService } from '../device-management/DeviceService';
-import { AuthService } from '../authentication/AuthService';
 import { UiReleaseService } from '../release-management/UiReleaseService';
 import { OtaService } from '../release-management/OtaService';
 import { detectLanIp, getAllLanInterfaces } from '../utils/network';
@@ -35,82 +34,48 @@ apiRouter.get('/devices', (req: Request, res: Response) => {
 // -------------------------------------------------------------
 // Device Pairing Lifecycle
 // -------------------------------------------------------------
-apiRouter.post('/pair/register-code', (req: Request, res: Response) => {
-  const { deviceId, code, expiresAt } = req.body;
-  if (!deviceId || !code) {
-    return res.status(400).json({ error: 'Missing deviceId or pairing code' });
-  }
-  const expiry = expiresAt || (Date.now() + 5 * 60 * 1000);
-  DeviceService.storePairingCode(deviceId, code, expiry);
-  return res.json({ success: true, message: 'Pairing code registered', code, expiresAt: expiry });
+apiRouter.post('/pair/register-code', (_req: Request, res: Response) => {
+  return res.status(410).json({
+    error: 'REST pairing is disabled. Register and consume pairing codes through the authenticated WebSocket flow so device-owner consent is required.'
+  });
 });
 
-apiRouter.post('/pair/verify', (req: Request, res: Response) => {
-  const { code, operatorFingerprint, operatorName, operatorLocation } = req.body;
-  if (!code || !operatorFingerprint) {
-    return res.status(400).json({ error: 'Missing pairing parameters' });
-  }
-
-  const deviceId = DeviceService.validateAndConsumePairingCode(code);
-  if (!deviceId) {
-    return res.status(401).json({ error: 'Invalid or expired 6-digit pairing code' });
-  }
-
-  const token = AuthService.generateSessionToken({
-    entityId: operatorFingerprint,
-    entityType: 'OPERATOR',
-    fingerprint: operatorFingerprint,
-  });
-
-  // Dynamic signaling WebSocket URL respecting current host (LAN IP or domain)
-  const host = req.get('host') || '192.168.1.105:8080';
-  const proto = req.protocol === 'https' ? 'wss' : 'ws';
-  const dynamicSignalingUrl = `${proto}://${host}/ws`;
-
-  return res.json({
-    success: true,
-    deviceId,
-    sessionToken: token,
-    signalingUrl: dynamicSignalingUrl,
+apiRouter.post('/pair/verify', (_req: Request, res: Response) => {
+  return res.status(410).json({
+    error: 'REST pairing is disabled. Pair through WebSocket and wait for an explicit PAIR_ACCEPT from the receiver.'
   });
 });
 
 // -------------------------------------------------------------
 // ICE Servers (STUN/TURN)
 // -------------------------------------------------------------
-apiRouter.get('/ice-servers', (req: Request, res: Response) => {
-  const turnSecret = process.env.TURN_SHARED_SECRET || 'mahi-turn-secret-key-prod-2026';
-  const turnDomain = process.env.TURN_DOMAIN || 'turn.mahi-remote.cloud';
-  const turnPort = process.env.TURN_PORT || '3478';
+apiRouter.get('/ice-servers', (_req: Request, res: Response) => {
+  const iceServers: Array<Record<string, unknown>> = [
+    { urls: 'stun:stun.l.google.com:19302' }
+  ];
 
-  const expiry = Math.floor(Date.now() / 1000) + 12 * 3600;
-  const username = `${expiry}:mahi_session`;
-  const hmac = crypto.createHmac('sha1', turnSecret);
-  hmac.setEncoding('base64');
-  hmac.write(username);
-  hmac.end();
-  const credential = hmac.read();
+  const turnSecret = process.env.TURN_SHARED_SECRET;
+  const turnDomain = process.env.TURN_DOMAIN;
+  if (turnSecret && turnDomain) {
+    const turnPort = process.env.TURN_PORT || '3478';
+    const expiry = Math.floor(Date.now() / 1000) + 12 * 3600;
+    const username = `${expiry}:mahi_session`;
+    const credential = crypto.createHmac('sha1', turnSecret).update(username).digest('base64');
+    iceServers.push({
+      urls: [
+        `turn:${turnDomain}:${turnPort}?transport=udp`,
+        `turn:${turnDomain}:${turnPort}?transport=tcp`,
+      ],
+      username,
+      credential,
+    });
+  }
 
-  res.json({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: `stun:${turnDomain}:${turnPort}` },
-      {
-        urls: [
-          `turn:${turnDomain}:${turnPort}?transport=udp`,
-          `turn:${turnDomain}:${turnPort}?transport=tcp`,
-        ],
-        username,
-        credential,
-      },
-    ],
-  });
+  return res.json({ iceServers });
 });
 
-apiRouter.post('/sessions/:id/terminate', (req: Request, res: Response) => {
-  const { id } = req.params;
-  DeviceService.endSession(id);
-  res.json({ success: true, message: `Session ${id} terminated` });
+apiRouter.post('/sessions/:id/terminate', (_req: Request, res: Response) => {
+  return res.status(401).json({ error: 'Authenticated session ownership is required to terminate a session' });
 });
 
 // -------------------------------------------------------------
@@ -230,12 +195,12 @@ apiRouter.get('/ui-updates/public-key', (req: Request, res: Response) => {
 apiRouter.get('/app-updates/latest', (req: Request, res: Response) => {
   const platform = (req.query.platform as string) || 'android';
   const release = OtaService.getLatestRelease(platform);
+  if (!release) return res.status(404).json({ error: 'No verified installable APK release is available' });
   return res.json(release);
 });
 
-apiRouter.get('/app-updates/history', (req: Request, res: Response) => {
-  const history = OtaService.getHistory();
-  return res.json({ releases: history });
+apiRouter.get('/app-updates/history', (_req: Request, res: Response) => {
+  return res.json({ releases: OtaService.getHistory() });
 });
 
 apiRouter.post('/admin/app-updates/upload', (req: Request, res: Response) => {
@@ -244,27 +209,26 @@ apiRouter.post('/admin/app-updates/upload', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Unauthorized: Admin API key required' });
   }
 
-  const { versionName, versionCode, releaseNotes, isMandatory, apkBase64 } = req.body;
-  if (!apkBase64) {
-    return res.status(400).json({ error: 'apkBase64 payload required for binary upload' });
+  const { versionName, versionCode, releaseNotes, isMandatory, apkBase64, signingFingerprint, packageName } = req.body;
+  if (typeof apkBase64 !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(apkBase64)) {
+    return res.status(400).json({ error: 'A valid base64 APK payload is required' });
   }
 
   const buffer = Buffer.from(apkBase64, 'base64');
   const result = OtaService.publishApkBinary({
     buffer,
     versionName,
-    versionCode: parseInt(versionCode, 10),
+    versionCode: Number(versionCode),
     releaseNotes,
+    signingFingerprint,
+    packageName,
     isMandatory: Boolean(isMandatory),
   });
 
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
-  }
-
+  if (!result.success) return res.status(400).json({ error: result.error });
   return res.status(201).json({
     success: true,
-    message: `Stored binary APK for v${versionName} (${buffer.length} bytes)`,
+    message: `Stored verified APK for v${versionName} (${buffer.length} bytes)`,
     release: result.release,
   });
 });
@@ -277,53 +241,33 @@ apiRouter.post('/admin/app-updates/rollback', (req: Request, res: Response) => {
 
   const { targetVersionName } = req.body;
   const result = OtaService.rollback(targetVersionName);
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  return res.json({ success: true, message: `Rolled back native APK to v${targetVersionName}`, release: result.release });
+});
+
+function sendApkDownload(versionName: string | undefined, res: Response) {
+  const release = versionName === 'latest'
+    ? OtaService.getLatestRelease('android')
+    : OtaService.getHistory().find((item) => item.versionName === versionName) || null;
+
+  if (!release) return res.status(404).json({ error: 'Requested installable APK release was not found' });
+  const filePath = OtaService.getApkFilePath(release.versionName);
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'APK binary is unavailable; no placeholder download is served' });
   }
 
-  return res.json({
-    success: true,
-    message: `Rolled back active APK release to v${targetVersionName}`,
-    release: result.release,
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', `attachment; filename="mahi-remote-v${release.versionName}.apk"`);
+  res.setHeader('Content-Length', fs.statSync(filePath).size);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', () => {
+    if (!res.headersSent) res.status(500).json({ error: 'APK download failed' });
+    else res.destroy();
   });
-});
+  return stream.pipe(res);
+}
 
-apiRouter.get('/app-updates/download/:version', (req: Request, res: Response) => {
-  const { version } = req.params;
-  const targetVer = version === 'latest' ? OtaService.getLatestRelease().versionName : version;
-  const filePath = OtaService.getApkFilePath(targetVer);
-
-  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', `attachment; filename="mahi-remote-v${targetVer}.apk"`);
-
-  if (filePath && fs.existsSync(filePath)) {
-    const stat = fs.statSync(filePath);
-    res.setHeader('Content-Length', stat.size);
-    const stream = fs.createReadStream(filePath);
-    return stream.pipe(res);
-  }
-
-  // Fallback testing binary
-  const fallbackBytes = Buffer.from(`Mahi-Remote-Real-APK-Binary-v${targetVer}-Package-com.aistudio.mahiremote.bqpjku`);
-  res.setHeader('Content-Length', fallbackBytes.length);
-  return res.send(fallbackBytes);
-});
-
-apiRouter.get('/app-updates/download/latest', (req: Request, res: Response) => {
-  const ota = OtaService.getLatestRelease('android');
-  const filePath = OtaService.getApkFilePath(ota.versionName);
-
-  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', `attachment; filename="mahi-remote-v${ota.versionName}.apk"`);
-
-  if (filePath && fs.existsSync(filePath)) {
-    const stat = fs.statSync(filePath);
-    res.setHeader('Content-Length', stat.size);
-    const stream = fs.createReadStream(filePath);
-    return stream.pipe(res);
-  }
-
-  const fallbackBytes = Buffer.from(`Mahi-Remote-Real-APK-Binary-v${ota.versionName}-Package-${ota.packageName}`);
-  res.setHeader('Content-Length', fallbackBytes.length);
-  return res.send(fallbackBytes);
-});
+// Keep the exact "latest" path before the version parameter route.
+apiRouter.get('/app-updates/download/latest', (_req: Request, res: Response) => sendApkDownload('latest', res));
+apiRouter.get('/app-updates/download/:version', (req: Request, res: Response) => sendApkDownload(req.params.version, res));
