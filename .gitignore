@@ -16,3 +16,17 @@
 local.properties
 .env
 debug.keystore
+
+# Local secrets and signing material
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+/backend/data/keys/
+/backend/data/apk/*.apk
+/dist/
+/backend/dist/
