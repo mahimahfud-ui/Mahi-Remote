@@ -160,72 +160,82 @@ async function runSyncCycle() {
     // Stage the complete validated bundle before publishing.
     const liveDir = path.join(__dirname, '../public/live');
     const stageDir = path.join(__dirname, '../public/.live-stage');
-    fs.rmSync(stageDir, { recursive: true, force: true });
-    fs.mkdirSync(stageDir, { recursive: true });
-    fs.writeFileSync(path.join(stageDir, 'index.html'), bundle.files['index.html'], 'utf8');
-    fs.writeFileSync(path.join(stageDir, 'live.css'), bundle.files['live.css'], 'utf8');
-    fs.writeFileSync(path.join(stageDir, 'live.js'), bundle.files['live.js'], 'utf8');
-
-    // Install the verified bytes before registering the release: the backend
-    // independently re-hashes the on-disk bundle during publication.
-    fs.mkdirSync(liveDir, { recursive: true });
     const backupDir = path.join(__dirname, '../data/local-ui-backup');
-    fs.rmSync(backupDir, { recursive: true, force: true });
-    fs.mkdirSync(backupDir, { recursive: true });
     const bundleFiles = ['index.html', 'live.css', 'live.js'];
     const previouslyExisted = new Set();
-    for (const file of bundleFiles) {
-      const activeFile = path.join(liveDir, file);
-      if (fs.existsSync(activeFile)) {
-        previouslyExisted.add(file);
-        fs.copyFileSync(activeFile, path.join(backupDir, file));
-      }
-      fs.copyFileSync(path.join(stageDir, file), activeFile);
-    }
+    let activeSwapStarted = false;
 
-    // 6. Register release into Windows local backend via admin API
-    console.log(`[SyncBridge] Publishing v${version} to Windows LAN backend (${LOCAL_URL})...`);
-    const publishPayload = JSON.stringify({
-      version,
-      buildId,
-      releaseNotes: cloudManifest.releaseNotes || 'Synchronized from Google AI Studio',
-      componentsUpdated: cloudManifest.componentsUpdated || ['Dashboard', 'Telemetry', 'Controls'],
-      assets: cloudManifest.assets,
-      isMandatory: cloudManifest.isMandatory || false
-    });
-
-    const publishRes = await fetchJson(`${LOCAL_URL}/api/v1/admin/ui-releases`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(publishPayload),
-        'X-Admin-Key': ADMIN_KEY
-      },
-      body: publishPayload
-    });
-
-    fs.rmSync(stageDir, { recursive: true, force: true });
-    if (publishRes.success) {
+    try {
+      fs.rmSync(stageDir, { recursive: true, force: true });
       fs.rmSync(backupDir, { recursive: true, force: true });
-      console.log(`================================================================`);
-      console.log(`✓ SYNC COMPLETE: v${version} active on Windows LAN Backend!`);
-      console.log(`✓ WebSocket broadcast emitted: All Android phones on LAN will auto-reload!`);
-      console.log(`================================================================`);
-      return true;
-    }
+      fs.mkdirSync(stageDir, { recursive: true });
+      fs.mkdirSync(backupDir, { recursive: true });
+      fs.mkdirSync(liveDir, { recursive: true });
 
-    // Restore the previous active UI if the local release service rejected it.
-    for (const file of bundleFiles) {
-      const activeFile = path.join(liveDir, file);
-      if (previouslyExisted.has(file)) {
-        fs.copyFileSync(path.join(backupDir, file), activeFile);
-      } else if (fs.existsSync(activeFile)) {
-        fs.unlinkSync(activeFile);
+      for (const file of bundleFiles) {
+        fs.writeFileSync(path.join(stageDir, file), bundle.files[file], 'utf8');
+        const activeFile = path.join(liveDir, file);
+        if (fs.existsSync(activeFile)) {
+          fs.copyFileSync(activeFile, path.join(backupDir, file));
+          previouslyExisted.add(file);
+        }
       }
+
+      // If any subsequent step fails, the active UI can be restored from backup.
+      activeSwapStarted = true;
+      for (const file of bundleFiles) {
+        fs.copyFileSync(path.join(stageDir, file), path.join(liveDir, file));
+      }
+
+      // Local UiReleaseService re-hashes the active files before accepting the
+      // signed manifest and broadcasting UI_UPDATE_AVAILABLE.
+      console.log(`[SyncBridge] Publishing v${version} to Windows LAN backend (${LOCAL_URL})...`);
+      const publishPayload = JSON.stringify({
+        version,
+        buildId,
+        releaseNotes: cloudManifest.releaseNotes || 'Synchronized from Google AI Studio',
+        componentsUpdated: cloudManifest.componentsUpdated || ['Dashboard', 'Diagnostics', 'Controls'],
+        assets: cloudManifest.assets,
+        isMandatory: cloudManifest.isMandatory || false
+      });
+
+      const publishRes = await fetchJson(`${LOCAL_URL}/api/v1/admin/ui-releases`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(publishPayload),
+          'X-Admin-Key': ADMIN_KEY
+        },
+        body: publishPayload
+      });
+      if (!publishRes.success) {
+        throw new Error(publishRes.error || 'Local backend rejected the signed UI release');
+      }
+
+      fs.rmSync(stageDir, { recursive: true, force: true });
+      fs.rmSync(backupDir, { recursive: true, force: true });
+      console.log('================================================================');
+      console.log(`✓ SYNC COMPLETE: v${version} active on Windows LAN Backend!`);
+      console.log('✓ WebSocket update event emitted for connected clients.');
+      console.log('================================================================');
+      return true;
+    } catch (publishError) {
+      if (activeSwapStarted) {
+        for (const file of bundleFiles) {
+          const activeFile = path.join(liveDir, file);
+          const backupFile = path.join(backupDir, file);
+          if (previouslyExisted.has(file) && fs.existsSync(backupFile)) {
+            fs.copyFileSync(backupFile, activeFile);
+          } else if (!previouslyExisted.has(file) && fs.existsSync(activeFile)) {
+            fs.unlinkSync(activeFile);
+          }
+        }
+      }
+      fs.rmSync(stageDir, { recursive: true, force: true });
+      fs.rmSync(backupDir, { recursive: true, force: true });
+      console.error('[SyncBridge] Local UI publish failed; previous bundle was restored:', publishError.message);
+      return false;
     }
-    fs.rmSync(backupDir, { recursive: true, force: true });
-    console.error(`[SyncBridge] Failed to register release on local server:`, publishRes.error);
-    return false;
   } catch (err) {
     console.warn(`[SyncBridge] Sync cycle error: ${err.message}`);
     return false;
