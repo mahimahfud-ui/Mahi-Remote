@@ -19,23 +19,12 @@ import com.example.MainActivity
 import com.example.R
 import com.example.security.AuditLogger
 import com.example.security.AuditSeverity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 class ScreenCaptureService : Service() {
 
-    private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
-    private var metricsJob: Job? = null
-
-    private var mediaProjection: MediaProjection? = null
-    private var virtualDisplay: VirtualDisplay? = null
     private var webRtcManager: com.example.webrtc.WebRtcSessionManager? = null
 
     companion object {
@@ -58,7 +47,8 @@ class ScreenCaptureService : Service() {
         var onWebRtcSignalGenerated: ((type: String, payload: String) -> Unit)? = null
         var onDisplayInfoGenerated: ((payload: String) -> Unit)? = null
 
-        fun isStreaming(): Boolean = _streamState.value is ScreenStreamState.Active
+        fun isStreaming(): Boolean = _streamState.value is ScreenStreamState.Connecting ||
+            _streamState.value is ScreenStreamState.Active
 
         fun stop(context: Context) {
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
@@ -188,8 +178,13 @@ class ScreenCaptureService : Service() {
             sendBroadcast(displayBroadcast)
 
             // Initialize WebRTC screen capturer and session pipeline
+            _streamState.value = ScreenStreamState.Connecting
             webRtcManager = com.example.webrtc.WebRtcSessionManager(
                 context = this,
+                onCaptureStopped = {
+                    _streamState.value = ScreenStreamState.Stopped
+                    AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission", AuditSeverity.WARNING)
+                },
                 onSignalingMessage = { type, payload ->
                     onWebRtcSignalGenerated?.invoke(type, payload)
                     val intent = Intent("com.example.action.WEBRTC_SIGNAL").apply {
@@ -200,69 +195,67 @@ class ScreenCaptureService : Service() {
                 }
             )
 
-            webRtcManager?.startScreenCapture(
+            val videoTrack = webRtcManager?.startScreenCapture(
                 projectionResultCode = resultCode,
                 projectionData = resultData,
                 width = preset.width,
                 height = preset.height,
                 fps = preset.fps
-            )
+            ) ?: throw IllegalStateException("Android MediaProjection could not initialize a video track")
 
-            // Initialize WebRTC PeerConnection with Google STUN server as sender
+            // ICE state is the real connection signal. Do not fabricate frame,
+            // bitrate, RTT or packet-loss values while the peer is negotiating.
             webRtcManager?.initPeerConnection(
                 iceServers = listOf(
                     org.webrtc.PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
                 ),
-                isSender = true
+                isSender = true,
+                onIceConnectionStateChanged = { iceState ->
+                    when (iceState) {
+                        org.webrtc.PeerConnection.IceConnectionState.CONNECTED,
+                        org.webrtc.PeerConnection.IceConnectionState.COMPLETED -> {
+                            _streamState.value = ScreenStreamState.Active(
+                                StreamMetrics(
+                                    currentFps = 0,
+                                    bitrateKbps = 0,
+                                    resolution = "${preset.width}x${preset.height}",
+                                    framesEncoded = 0,
+                                    bytesTransferred = 0,
+                                    roundTripTimeMs = 0,
+                                    packetLossPercent = 0f
+                                ),
+                                preset
+                            )
+                        }
+                        org.webrtc.PeerConnection.IceConnectionState.FAILED -> {
+                            _streamState.value = ScreenStreamState.Error("WebRTC ICE connection failed. Check TURN/network settings.")
+                        }
+                        org.webrtc.PeerConnection.IceConnectionState.DISCONNECTED,
+                        org.webrtc.PeerConnection.IceConnectionState.CHECKING,
+                        org.webrtc.PeerConnection.IceConnectionState.NEW -> {
+                            _streamState.value = ScreenStreamState.Connecting
+                        }
+                        org.webrtc.PeerConnection.IceConnectionState.CLOSED -> {
+                            _streamState.value = ScreenStreamState.Stopped
+                        }
+                        else -> Unit
+                    }
+                }
             )
 
-            AuditLogger.log("SCREEN", "STREAM_STARTED", "WebRTC MediaProjection active at ${metrics.widthPixels}x${metrics.heightPixels} (rot: $displayRotation)", AuditSeverity.SECURITY)
-
-            startMetricsSimulation(preset)
+            AuditLogger.log("SCREEN", "CAPTURE_INITIALIZED", "MediaProjection video source initialized at ${metrics.widthPixels}x${metrics.heightPixels} (rot: $displayRotation); waiting for ICE connection", AuditSeverity.INFO)
         } catch (e: Exception) {
             _streamState.value = ScreenStreamState.Error(e.message ?: "Failed to start MediaProjection")
             AuditLogger.log("SCREEN", "ERROR", "Failed to start MediaProjection: ${e.message}", AuditSeverity.CRITICAL)
         }
     }
 
-    private fun startMetricsSimulation(preset: VideoPreset) {
-        var frameCounter = 0L
-        var bytesCounter = 0L
-        val bytesPerFrame = (preset.bitrateKbps * 1024L / 8L) / preset.fps
-
-        metricsJob?.cancel()
-        metricsJob = serviceScope.launch {
-            while (isActive) {
-                frameCounter += preset.fps
-                bytesCounter += bytesPerFrame * preset.fps
-
-                val currentMetrics = StreamMetrics(
-                    currentFps = preset.fps,
-                    bitrateKbps = preset.bitrateKbps,
-                    resolution = "${preset.width}x${preset.height}",
-                    framesEncoded = frameCounter,
-                    bytesTransferred = bytesCounter,
-                    roundTripTimeMs = 28 + (frameCounter % 15).toInt(),
-                    packetLossPercent = 0.01f
-                )
-
-                _streamState.value = ScreenStreamState.Active(currentMetrics, preset)
-                delay(1000L)
-            }
-        }
-    }
 
     private fun stopCapture() {
-        metricsJob?.cancel()
-        metricsJob = null
         try {
             webRtcManager?.close()
             webRtcManager = null
-            virtualDisplay?.release()
-            virtualDisplay = null
-            mediaProjection?.stop()
-            mediaProjection = null
-        } catch (e: Exception) {
+                  } catch (e: Exception) {
             // Ignore clean teardown exceptions
         }
         _streamState.value = ScreenStreamState.Stopped
@@ -290,7 +283,7 @@ class ScreenCaptureService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Mahi Remote Screen Active")
-            .setContentText("Screen is streaming to authorized Windows operator")
+            .setContentText("Screen is being shared with the approved controller")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(openPendingIntent)
