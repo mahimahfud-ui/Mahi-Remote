@@ -19,7 +19,8 @@ services:
       UI_RELEASE_PRIVATE_KEY: "${UI_RELEASE_PRIVATE_KEY:?Set UI_RELEASE_PRIVATE_KEY in your deployment secrets}"
       UI_RELEASE_PUBLIC_KEY: "${UI_RELEASE_PUBLIC_KEY:?Set UI_RELEASE_PUBLIC_KEY in your deployment secrets}"
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres-db:
@@ -31,6 +32,11 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in your uncommitted .env file}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your uncommitted .env file}"
       POSTGRES_DB: "${POSTGRES_DB:-mahi_remote}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     volumes:
       - mahi-postgres-data:/var/lib/postgresql/data
       - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
@@ -45,7 +51,7 @@ services:
     command:
       - sh
       - -c
-      - 'exec turnserver -c /etc/coturn/turnserver.conf --static-auth-secret="$$TURN_SHARED_SECRET"'
+      - 'exec turnserver -c /etc/coturn/turnserver.conf --realm="$TURN_DOMAIN" --static-auth-secret="$TURN_SHARED_SECRET"'
     volumes:
       - ./coturn.conf:/etc/coturn/turnserver.conf:ro
     restart: unless-stopped
