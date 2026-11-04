@@ -157,6 +157,23 @@ async function runSyncCycle() {
     fs.writeFileSync(path.join(stageDir, 'live.css'), bundle.files['live.css'], 'utf8');
     fs.writeFileSync(path.join(stageDir, 'live.js'), bundle.files['live.js'], 'utf8');
 
+    // Install the verified bytes before registering the release: the backend
+    // independently re-hashes the on-disk bundle during publication.
+    fs.mkdirSync(liveDir, { recursive: true });
+    const backupDir = path.join(__dirname, '../data/local-ui-backup');
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    fs.mkdirSync(backupDir, { recursive: true });
+    const bundleFiles = ['index.html', 'live.css', 'live.js'];
+    const previouslyExisted = new Set();
+    for (const file of bundleFiles) {
+      const activeFile = path.join(liveDir, file);
+      if (fs.existsSync(activeFile)) {
+        previouslyExisted.add(file);
+        fs.copyFileSync(activeFile, path.join(backupDir, file));
+      }
+      fs.copyFileSync(path.join(stageDir, file), activeFile);
+    }
+
     // 6. Register release into Windows local backend via admin API
     console.log(`[SyncBridge] Publishing v${version} to Windows LAN backend (${LOCAL_URL})...`);
     const publishPayload = JSON.stringify({
@@ -178,22 +195,28 @@ async function runSyncCycle() {
       body: publishPayload
     });
 
+    fs.rmSync(stageDir, { recursive: true, force: true });
     if (publishRes.success) {
-      fs.mkdirSync(liveDir, { recursive: true });
-      for (const file of ['index.html', 'live.css', 'live.js']) {
-        fs.copyFileSync(path.join(stageDir, file), path.join(liveDir, file));
-      }
-      fs.rmSync(stageDir, { recursive: true, force: true });
+      fs.rmSync(backupDir, { recursive: true, force: true });
       console.log(`================================================================`);
       console.log(`✓ SYNC COMPLETE: v${version} active on Windows LAN Backend!`);
       console.log(`✓ WebSocket broadcast emitted: All Android phones on LAN will auto-reload!`);
       console.log(`================================================================`);
       return true;
-    } else {
-      fs.rmSync(stageDir, { recursive: true, force: true });
-      console.error(`[SyncBridge] Failed to register release on local server:`, publishRes.error);
-      return false;
     }
+
+    // Restore the previous active UI if the local release service rejected it.
+    for (const file of bundleFiles) {
+      const activeFile = path.join(liveDir, file);
+      if (previouslyExisted.has(file)) {
+        fs.copyFileSync(path.join(backupDir, file), activeFile);
+      } else if (fs.existsSync(activeFile)) {
+        fs.unlinkSync(activeFile);
+      }
+    }
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    console.error(`[SyncBridge] Failed to register release on local server:`, publishRes.error);
+    return false;
   } catch (err) {
     console.warn(`[SyncBridge] Sync cycle error: ${err.message}`);
     return false;
