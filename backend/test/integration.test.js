@@ -159,13 +159,14 @@ async function runTests() {
     const controllerId = hello.clientId;
 
     const pairRequestPromise = waitForMessage(wsReceiver, message => message.type === 'PAIR_REQUEST');
+    const pairPendingPromise = waitForMessage(wsController, message => message.type === 'PAIR_PENDING');
     wsController.send(JSON.stringify({
       type: 'PAIR_BY_CODE',
       code,
       operatorName: 'Browser Test Controller',
       requestedScopes: ['Screen Mirroring', 'Remote Interaction'],
     }));
-    const pairPending = await waitForMessage(wsController, message => message.type === 'PAIR_PENDING');
+    const pairPending = await pairPendingPromise;
     assert.strictEqual(pairPending.receiverId, receiverId);
     const pairRequest = await pairRequestPromise;
     assert.strictEqual(pairRequest.controllerId, controllerId);
