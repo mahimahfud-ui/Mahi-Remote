@@ -1,4 +1,5 @@
 import { WebSocket, WebSocketServer } from 'ws';
+import crypto from 'crypto';
 import { DeviceService } from '../device-management/DeviceService';
 import { AuthService } from '../authentication/AuthService';
 import { UiReleaseService } from '../release-management/UiReleaseService';
@@ -18,12 +19,22 @@ interface PairRecord {
   createdAt: number;
 }
 
+interface PendingDeviceAuth {
+  deviceId: string;
+  deviceName: string;
+  fingerprint: string;
+  publicKeyBase64: string;
+  nonce: string;
+  role: ClientRole;
+}
+
 const PAIRING_CODE_TTL_MS = 5 * 60 * 1000;
 const PAIRING_RATE_LIMIT = 10;
 const PAIRING_RATE_WINDOW_MS = 5 * 60 * 1000;
 
 export class SignalingHub {
   private clients = new Map<string, ClientConnection>();
+  private pendingDeviceAuth = new Map<WebSocket, PendingDeviceAuth>();
   private pendingPairs = new Map<string, PairRecord>();
   private activePairs = new Map<string, PairRecord>();
 
@@ -75,81 +86,175 @@ export class SignalingHub {
     }
   }
 
+  private attachClient(
+    ws: WebSocket,
+    clientId: string,
+    clientType: ClientRole,
+    fingerprint: string,
+    welcomeType: 'SERVER_CONNECTED' | 'AUTH_OK'
+  ): ClientConnection {
+    const previous = this.clients.get(clientId);
+    if (previous?.ws.readyState === WebSocket.OPEN) {
+      this.send(previous, { type: 'CONNECTION_REPLACED', reason: 'A newer connection replaced this client' });
+      previous.ws.close(4001, 'Connection replaced');
+    }
+
+    const client: ClientConnection = { ws, id: clientId, type: clientType, fingerprint };
+    this.clients.set(clientId, client);
+    this.send(client, { type: welcomeType, clientId, role: clientType, timestamp: Date.now() });
+    return client;
+  }
+
+  private async authenticateDeviceSocket(
+    ws: WebSocket,
+    pending: PendingDeviceAuth,
+    message: any
+  ): Promise<void> {
+    const payload = message.payload && typeof message.payload === 'object' ? message.payload : {};
+    const signature = String(payload.signature || message.signature || '');
+    try {
+      const keyDer = Buffer.from(pending.publicKeyBase64, 'base64');
+      if (!signature || keyDer.length < 64 || keyDer.length > 2048) {
+        throw new Error('Missing or invalid device key/signature');
+      }
+      const publicKeyPem = crypto.createPublicKey({
+        key: keyDer,
+        format: 'der',
+        type: 'spki',
+      }).export({ type: 'spki', format: 'pem' }).toString();
+      const digest = crypto.createHash('sha256').update(keyDer).digest('hex').toUpperCase();
+      const calculatedFingerprint = (digest.match(/.{2}/g) || []).join(':').slice(0, 47);
+
+      if (calculatedFingerprint !== pending.fingerprint ||
+          !AuthService.verifyDeviceSignature(pending.nonce, signature, publicKeyPem)) {
+        throw new Error('Device fingerprint or nonce signature did not verify');
+      }
+
+      const trusted = await DeviceService.authenticateDeviceIdentity(
+        pending.deviceId,
+        pending.deviceName,
+        pending.fingerprint,
+        pending.publicKeyBase64
+      );
+      if (!trusted) throw new Error('Device identity does not match the previously registered key');
+
+      this.pendingDeviceAuth.delete(ws);
+      const client = this.attachClient(
+        ws,
+        pending.deviceId,
+        pending.role,
+        pending.fingerprint,
+        'AUTH_OK'
+      );
+      console.log(`[SignalingHub] Authenticated Android device: ${client.id} (${client.type})`);
+    } catch (error: any) {
+      this.pendingDeviceAuth.delete(ws);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'AUTH_ERROR',
+          error: error?.message || 'Device authentication failed',
+          timestamp: Date.now(),
+        }));
+        ws.close(1008, 'Device authentication failed');
+      }
+      console.warn('[SignalingHub] Rejected Android device authentication:', error?.message);
+    }
+  }
+
+  private handleClientClose(clientId: string, ws: WebSocket, client: ClientConnection): void {
+    if (this.clients.get(clientId)?.ws !== ws) return;
+    this.clients.delete(clientId);
+    if (client.type === 'RECEIVER') DeviceService.markDeviceOffline(clientId);
+
+    for (const pair of [...this.pendingPairs.values()]) {
+      if (pair.controllerId === clientId || pair.receiverId === clientId) {
+        const other = pair.controllerId === clientId ? pair.receiverId : pair.controllerId;
+        this.pendingPairs.delete(this.pairKey(pair.controllerId, pair.receiverId));
+        this.send(this.clients.get(other), { type: 'PAIR_ERROR', error: 'The other device disconnected during pairing' });
+      }
+    }
+    for (const pair of [...this.activePairs.values()]) {
+      if (pair.controllerId === clientId || pair.receiverId === clientId) {
+        this.removePair(pair, 'A paired device disconnected');
+      }
+    }
+  }
+
   private init(): void {
     this.wss.on('connection', (ws: WebSocket, req) => {
       const deviceId = req.headers['x-device-id'] as string | undefined;
       const operatorFingerprint = req.headers['x-operator-fingerprint'] as string | undefined;
       const requestedRole = String(req.headers['x-client-role'] || '').toUpperCase();
 
-      let clientId: string;
-      let clientType: ClientRole;
+      let client: ClientConnection | undefined;
       if (deviceId) {
         if (!/^[A-Za-z0-9._:-]{3,128}$/.test(deviceId)) {
           ws.close(1008, 'Invalid device identity');
           return;
         }
-        clientId = deviceId;
-        clientType = requestedRole === 'CONTROLLER' ? 'CONTROLLER' : 'RECEIVER';
-        void DeviceService.registerDevice(
+        const publicKeyBase64 = String(req.headers['x-device-public-key'] || '');
+        const fingerprint = String(req.headers['x-device-fingerprint'] || '');
+        const deviceName = String(req.headers['x-device-name'] || 'Android Phone').slice(0, 100);
+        if (!publicKeyBase64 || !fingerprint) {
+          ws.close(1008, 'Android device key is required');
+          return;
+        }
+        const nonce = crypto.randomBytes(32).toString('base64url');
+        const pending: PendingDeviceAuth = {
           deviceId,
-          String(req.headers['x-device-name'] || 'Android Phone').slice(0, 100),
-          String(req.headers['x-device-fingerprint'] || 'UNKNOWN').slice(0, 128)
-        );
+          deviceName,
+          fingerprint,
+          publicKeyBase64,
+          nonce,
+          role: requestedRole === 'CONTROLLER' ? 'CONTROLLER' : 'RECEIVER',
+        };
+        this.pendingDeviceAuth.set(ws, pending);
+        ws.send(JSON.stringify({ type: 'AUTH_CHALLENGE', nonce, timestamp: Date.now() }));
       } else if (operatorFingerprint) {
-        clientId = `operator_${operatorFingerprint.slice(0, 48)}`;
-        clientType = 'WINDOWS';
+        const clientId = `operator_${operatorFingerprint.slice(0, 48)}`;
+        client = this.attachClient(ws, clientId, 'WINDOWS', operatorFingerprint.slice(0, 128), 'SERVER_CONNECTED');
       } else {
-        // Browser WebSocket APIs cannot set arbitrary headers; give each web tab a
-        // per-connection controller identity. Pairing code approval binds it to a receiver.
-        clientId = `browser_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-        clientType = 'CONTROLLER';
+        // Browser WebSocket APIs cannot set arbitrary headers. This ephemeral
+        // controller can only receive access after owner-approved pairing.
+        const clientId = `browser_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+        client = this.attachClient(ws, clientId, 'CONTROLLER', '', 'SERVER_CONNECTED');
       }
-
-      const previous = this.clients.get(clientId);
-      if (previous?.ws.readyState === WebSocket.OPEN) {
-        this.send(previous, { type: 'CONNECTION_REPLACED', reason: 'A newer connection replaced this client' });
-        previous.ws.close(4001, 'Connection replaced');
-      }
-
-      const client: ClientConnection = {
-        ws,
-        id: clientId,
-        type: clientType,
-        fingerprint: String(req.headers['x-device-fingerprint'] || operatorFingerprint || '').slice(0, 128),
-      };
-      this.clients.set(clientId, client);
-      this.send(client, { type: 'SERVER_CONNECTED', clientId, role: clientType, timestamp: Date.now() });
 
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
           if (!message || typeof message.type !== 'string') {
-            this.send(client, { type: 'PROTOCOL_ERROR', error: 'Message type is required' });
+            if (client) this.send(client, { type: 'PROTOCOL_ERROR', error: 'Message type is required' });
+            else ws.close(1008, 'Invalid authentication message');
             return;
           }
+
+          const pending = this.pendingDeviceAuth.get(ws);
+          if (pending) {
+            if (message.type !== 'AUTH') {
+              ws.close(1008, 'Device authentication required');
+              return;
+            }
+            void this.authenticateDeviceSocket(ws, pending, message).then((ok) => {
+              // Device registration only occurs after the signed nonce succeeds.
+            });
+            return;
+          }
+
+          if (!client) {
+            client = [...this.clients.values()].find((candidate) => candidate.ws === ws);
+          }
+          if (!client) return;
           this.handleMessage(client, message);
         } catch {
-          this.send(client, { type: 'PROTOCOL_ERROR', error: 'Invalid JSON message' });
+          if (client) this.send(client, { type: 'PROTOCOL_ERROR', error: 'Invalid JSON message' });
+          else ws.close(1008, 'Invalid JSON authentication message');
         }
       });
 
       ws.on('close', () => {
-        if (this.clients.get(clientId)?.ws !== ws) return;
-        this.clients.delete(clientId);
-        if (client.type === 'RECEIVER') DeviceService.markDeviceOffline(clientId);
-
-        for (const pair of [...this.pendingPairs.values()]) {
-          if (pair.controllerId === clientId || pair.receiverId === clientId) {
-            const other = pair.controllerId === clientId ? pair.receiverId : pair.controllerId;
-            this.pendingPairs.delete(this.pairKey(pair.controllerId, pair.receiverId));
-            this.send(this.clients.get(other), { type: 'PAIR_ERROR', error: 'The other device disconnected during pairing' });
-          }
-        }
-        for (const pair of [...this.activePairs.values()]) {
-          if (pair.controllerId === clientId || pair.receiverId === clientId) {
-            this.removePair(pair, 'A paired device disconnected');
-          }
-        }
+        this.pendingDeviceAuth.delete(ws);
+        if (client) this.handleClientClose(client.id, ws, client);
       });
     });
   }
