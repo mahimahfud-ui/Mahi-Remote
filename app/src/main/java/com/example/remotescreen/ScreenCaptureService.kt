@@ -205,6 +205,7 @@ class ScreenCaptureService : Service() {
                 onCaptureStopped = {
                     projectionActive = false
                     peerConnectionReady = false
+                    synchronized(pendingSignalLock) { pendingSignals.clear() }
                     _streamState.value = ScreenStreamState.Stopped
                     AuditLogger.log("SCREEN", "PROJECTION_REVOKED", "Android stopped screen capture permission", AuditSeverity.WARNING)
                 },
