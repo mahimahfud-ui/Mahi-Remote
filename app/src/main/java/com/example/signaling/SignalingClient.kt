@@ -86,6 +86,7 @@ class SignalingClient(
                 .url(_serverUrl.value)
                 .addHeader("X-Device-Id", deviceIdentity.deviceId)
                 .addHeader("X-Device-Fingerprint", deviceIdentity.fingerprint)
+                .addHeader("X-Device-Public-Key", deviceIdentity.publicKeyBase64)
                 .addHeader("X-Device-Name", deviceIdentity.deviceName)
                 .addHeader("X-Client-Role", currentRole)
                 .build()
@@ -97,26 +98,53 @@ class SignalingClient(
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
-                _connectionStatus.value = ConnectionStatus.AUTHENTICATED
-                AuditLogger.log("SIGNALING", "CONNECTED", "Authenticated with signaling server as ${deviceIdentity.deviceId}", AuditSeverity.SECURITY)
-                
-                // Register this socket, then flush the latest pairing code that may
-                // have been generated before the asynchronous WebSocket handshake completed.
-                send("REGISTER", JSONObject()
-                    .put("deviceId", deviceIdentity.deviceId)
-                    .put("model", deviceIdentity.deviceName)
-                    .toString())
-                while (true) {
-                    val queued = pendingPairingRegistrations.poll() ?: break
-                    if (!ws.send(queued)) {
-                        pendingPairingRegistrations.offer(queued)
-                        break
-                    }
-                }
+                _connectionStatus.value = ConnectionStatus.CONNECTED
+                AuditLogger.log("SIGNALING", "CONNECTED", "WebSocket established; waiting for device-key challenge", AuditSeverity.INFO)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
-                parseAndDispatch(text)
+                try {
+                    val root = JSONObject(text)
+                    when (root.optString("type")) {
+                        "AUTH_CHALLENGE" -> {
+                            val nonce = root.optString("nonce", "")
+                            val signature = DeviceIdentity.signData(nonce.toByteArray(Charsets.UTF_8))
+                            if (nonce.isBlank() || signature.isNullOrBlank()) {
+                                _connectionStatus.value = ConnectionStatus.ERROR
+                                AuditLogger.log("SECURITY", "DEVICE_AUTH_FAILED", "Android Keystore could not sign the server challenge", AuditSeverity.CRITICAL)
+                                ws.close(1008, "Device key unavailable")
+                                return
+                            }
+                            val authMessage = JSONObject()
+                                .put("type", "AUTH")
+                                .put("payload", JSONObject().put("signature", signature))
+                            ws.send(authMessage.toString())
+                        }
+                        "AUTH_OK" -> {
+                            _connectionStatus.value = ConnectionStatus.AUTHENTICATED
+                            AuditLogger.log("SECURITY", "DEVICE_AUTHENTICATED", "Server verified this device's Android Keystore identity", AuditSeverity.SECURITY)
+                            send("REGISTER", JSONObject()
+                                .put("deviceId", deviceIdentity.deviceId)
+                                .put("model", deviceIdentity.deviceName)
+                                .toString())
+                            while (true) {
+                                val queued = pendingPairingRegistrations.poll() ?: break
+                                if (!ws.send(queued)) {
+                                    pendingPairingRegistrations.offer(queued)
+                                    break
+                                }
+                            }
+                        }
+                        "AUTH_ERROR" -> {
+                            _connectionStatus.value = ConnectionStatus.ERROR
+                            AuditLogger.log("SECURITY", "DEVICE_AUTH_REJECTED", root.optString("error", "Server rejected device identity"), AuditSeverity.CRITICAL)
+                            ws.close(1008, "Device authentication rejected")
+                        }
+                        else -> parseAndDispatch(text)
+                    }
+                } catch (e: Exception) {
+                    parseAndDispatch(text)
+                }
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
