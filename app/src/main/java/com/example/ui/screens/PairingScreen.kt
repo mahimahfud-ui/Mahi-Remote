@@ -100,7 +100,7 @@ fun PairingScreen(viewModel: MahiViewModel) {
                 )
 
                 Text(
-                    text = "Share this 6-digit code with your authorized Windows desktop operator in Sylhet to establish end-to-end encrypted connection:",
+                    text = "Enter this one-time code on another Android device or in the web controller. Screen sharing and remote access start only after you approve the request on this phone.",
                     color = TextSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
